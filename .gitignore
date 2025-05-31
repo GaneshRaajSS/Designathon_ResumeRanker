@@ -1,0 +1,29 @@
+# Node
+node_modules/
+dist/
+.env
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+
+# Compiled files
+*.class
+*.dll
+*.exe
+*.so
+*.pyc
+__pycache__/
+
+# Visual Studio Code
+.vscode/
+
+# Others
+coverage/
+build/
+
