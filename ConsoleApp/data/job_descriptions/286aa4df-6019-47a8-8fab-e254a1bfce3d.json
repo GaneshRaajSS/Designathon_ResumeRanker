@@ -1,0 +1,16 @@
+{
+  "id": "286aa4df-6019-47a8-8fab-e254a1bfce3d",
+  "title": "Software Engineer",
+  "description": "Expertise in building scalable backend systems and Generative AI-powered solutions and should be able to integrate advanced AI technologies ",
+  "required_skills": [
+    "python",
+    "generative ai",
+    "large language model",
+    "flask",
+    "sqlite",
+    "postman",
+    "sql"
+  ],
+  "experience_level": "junior",
+  "created_at": "2025-05-31 13:14:01.572074"
+}

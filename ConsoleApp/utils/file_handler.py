@@ -1,7 +1,6 @@
 import os
 import json
 from model.document import JobDescription
-from utils.exceptions import FileHandlingError
 
 class FileHandler:
     def __init__(self):
@@ -15,8 +14,8 @@ class FileHandler:
         with open(path, 'r') as f:
             return f.read()
 
-    def save_job_from_input(self, title, content):
-        job = JobDescription.from_text(title, content)
+    def save_job_from_input(self, title, content, skills):
+        job = JobDescription.from_text(title, content, skills)
         file_path = os.path.join(self.jobs_dir, f"{job.id}.json")
         with open(file_path, 'w') as f:
             json.dump(job.__dict__, f, indent=2, default=str)

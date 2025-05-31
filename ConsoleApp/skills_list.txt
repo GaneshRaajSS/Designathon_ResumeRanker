@@ -1,0 +1,150 @@
+python
+java
+javascript
+typescript
+c++
+c#
+go
+ruby
+php
+swift
+kotlin
+scala
+perl
+r
+matlab
+sql
+nosql
+mongodb
+postgresql
+mysql
+mssql
+sqlite
+oracle
+redis
+cassandra
+elasticsearch
+graphql
+rest api
+soap
+html
+css
+sass
+less
+react
+angular
+vue
+ember
+backbone
+node.js
+express
+django
+flask
+spring
+hibernate
+laravel
+symfony
+dotnet
+asp.net
+docker
+kubernetes
+aws
+azure
+gcp
+google cloud
+terraform
+ansible
+puppet
+chef
+jenkins
+circleci
+travis ci
+git
+github
+gitlab
+bitbucket
+linux
+unix
+bash
+powershell
+windows server
+firebase
+heroku
+digitalocean
+machine learning
+ml
+deep learning
+tensorflow
+pytorch
+keras
+scikit-learn
+nlp
+natural language processing(nlp)
+generative ai(genai)
+prompt engineering
+llm
+rag
+vector databases
+computer vision
+opencv
+data science
+big data
+hadoop
+spark
+apache kafka
+apache flink
+elixir
+erlang
+redux
+rxjs
+webpack
+babel
+eslint
+jasmine
+mocha
+jest
+selenium
+cucumber
+testng
+junit
+pytest
+soapui
+postman
+jira
+confluence
+agile
+scrum
+kanban
+tdd
+bdd
+oop
+functional programming
+microservices
+serverless
+restful services
+grpc
+oauth
+jwt
+ssl
+tcp/ip
+udp
+mqtt
+rabbitmq
+apache activemq
+prometheus
+grafana
+new relic
+datadog
+logstash
+elk stack
+splunk
+firebase
+graphql
+apache airflow
+docker-compose
+helm
+istio
+linkerd
+word
+excel
+presentation

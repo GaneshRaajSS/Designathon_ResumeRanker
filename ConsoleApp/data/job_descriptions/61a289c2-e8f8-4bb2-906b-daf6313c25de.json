@@ -1,0 +1,11 @@
+{
+  "id": "61a289c2-e8f8-4bb2-906b-daf6313c25de",
+  "title": "Dot Net Developer",
+  "description": "should be proficient in frontend and backend technologies, API integrations and Database Management.",
+  "required_skills": [
+    "dotnet",
+    "mssql"
+  ],
+  "experience_level": "junior",
+  "created_at": "2025-05-31 15:08:35.210935"
+}

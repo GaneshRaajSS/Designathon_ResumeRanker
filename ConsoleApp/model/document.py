@@ -13,15 +13,9 @@ class JobDescription:
     created_at: datetime
 
     @classmethod
-    def from_text(cls, title, content):
-        skills = cls._extract_skills(content)
+    def from_text(cls, title, content, skills: List[str]):
         experience = cls._extract_experience_level(content)
         return cls(str(uuid.uuid4()), title, content, skills, experience, datetime.now())
-
-    @staticmethod
-    def _extract_skills(content):
-        keywords = ['python', 'java', 'sql', 'machine learning', 'aws', 'docker']
-        return [k for k in keywords if k in content.lower()]
 
     @staticmethod
     def _extract_experience_level(content):
@@ -31,3 +25,4 @@ class JobDescription:
         elif "mid" in text:
             return "mid"
         return "junior"
+
