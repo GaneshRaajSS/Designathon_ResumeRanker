@@ -27,15 +27,13 @@ class DocumentSimilarityApp:
             "natural language processing(nlp)": "natural language processing",
             "llm": "large language model",
         }
-
         self.similarity_service = SimilarityService(
             known_skills=self.known_skills,
             synonyms=self.synonyms,
             fuzzy_threshold=0.8
         )
         self.ranking_service = RankingService()
-
-
+#Skills Normalizer--------------------------------------------------------------------------
     def normalize_skills(self, skills):
         # Normalize skills by applying synonyms dictionary and lowercasing
         normalized = []
@@ -43,7 +41,7 @@ class DocumentSimilarityApp:
             s_lower = s.lower().strip()
             normalized.append(self.synonyms.get(s_lower, s_lower))
         return normalized
-
+#Roles Checker--------------------------------------------------------------------------
     def requires_role(required_roles):
         def decorator(func):
             def wrapper(self, *args, **kwargs):
@@ -65,16 +63,31 @@ class DocumentSimilarityApp:
         print("   DOCUMENT SIMILARITY COMPARISON & RANKING SYSTEM")
 
     def display_menu(self):
+        user_role = self.auth_manager.get_current_user_role()
         print("\n📋 MAIN MENU")
-        print("1. Upload Job Description")
-        print("2. Upload Resume")
-        print("3. View Available Profiles")
-        print("4. Compare Job with Profiles")
-        print("5. View Ranking Results")
-        print("6. Generate Report")
-        print("7. Logout")
-        print("8. Exit")
 
+        options = {}
+
+        if user_role == "admin":
+            options["1"] = "Upload Job Description"
+            options["2"] = "Generate Report"
+
+        elif user_role == "recruiter":
+            options["1"] = "Upload Resume"
+            options["2"] = "Compare Documents"
+            options["3"] = "View Profiles"
+            options["4"] = "View Ranking Results"
+
+        # Common options
+        common_start = len(options) + 1
+        options[str(common_start)] = "Logout"
+        options[str(common_start + 1)] = "Exit"
+
+        for key, value in options.items():
+            print(f"{key}. {value}")
+
+
+#LOGIN--------------------------------------------------------------------------
     def login_flow(self):
         try:
             print("\n🔐 LOGIN REQUIRED")
@@ -90,8 +103,8 @@ class DocumentSimilarityApp:
         except AuthenticationError as e:
             print(f"❌ {e}")
             return False
-
-    @requires_role(['recruiter'])
+#JD INPUTS--------------------------------------------------------------------------
+    @requires_role(['admin'])
     def upload_job_description(self):
         try:
             title = input("Enter Job Title: ").strip()
@@ -113,11 +126,11 @@ class DocumentSimilarityApp:
             print(f"✅ Job posted successfully! Job ID: {job_id}")
         except Exception as e:
             print(f"❌ {e}")
-
-    @requires_role(['employee'])
+#Input Resumes--------------------------------------------------------------------------
+    @requires_role(['recruiter'])
     def upload_resume(self):
         try:
-            print("\n📄 Upload Your Resume")
+            print("\n📄 Upload Resume")
             use_pdf = input("Do you want to upload from PDF? (y/n): ").strip().lower()
             if use_pdf == 'y':
                 self.upload_resume_from_pdf()
@@ -156,8 +169,8 @@ class DocumentSimilarityApp:
 
         except Exception as e:
             print(f"❌ Error uploading resume: {e}")
-
-    @requires_role(['employee'])
+#UPLOAD RESUME--------------------------------------------------------------------------
+    @requires_role(['recruiter'])
     def upload_resume_from_pdf(self):
         import fitz  # PyMuPDF
         try:
@@ -225,7 +238,7 @@ class DocumentSimilarityApp:
 
         except Exception as e:
             print(f"❌ Error processing PDF: {e}")
-
+#VIEW PROFILES--------------------------------------------------------------------------
     def view_profiles(self):
         try:
             profiles = self.file_handler.get_all_profiles()
@@ -234,7 +247,7 @@ class DocumentSimilarityApp:
                 print(f"{i}. {profile.get('name')} - {profile.get('title')}")
         except Exception as e:
             print(f"❌ {e}")
-
+#Compare Docs--------------------------------------------------------------------------
     @requires_role(['recruiter'])
     def compare_documents(self):
         try:
@@ -285,8 +298,7 @@ class DocumentSimilarityApp:
 
         except Exception as e:
             print(f"❌ {e}")
-
-    @requires_role(['recruiter'])
+#View Ranking Results--------------------------------------------------------------------------
     def view_ranking_results(self):
         try:
             results = self.file_handler.get_comparison_results()
@@ -297,12 +309,16 @@ class DocumentSimilarityApp:
             for job_id, matches in results.items():
                 print(f"\nJob ID: {job_id}")
                 for i, match in enumerate(matches, 1):
-                    prof = match['profile']
-                    print(f"{i}. {prof.get('name')} - {prof.get('title')} - Score: {match['score']}%")
+                    prof = match.get('profile', {})
+                    name = prof.get('name', 'Unknown')
+                    title = prof.get('title', 'Unknown')
+                    score = match.get('score', 'N/A')
+                    print(f"{i}. {name} - {title} - Score: {score}%")
+
 
         except Exception as e:
             print(f"❌ {e}")
-
+#Generate Reports--------------------------------------------------------------------------
     @requires_role(['admin'])
     def generate_report(self):
         try:
@@ -315,8 +331,15 @@ class DocumentSimilarityApp:
             for job_id, matches in results.items():
                 report_lines.append(f"Job ID: {job_id}")
                 for i, match in enumerate(matches, 1):
-                    prof = match['profile']
-                    line = f"{i}. {prof.get('name')} - {prof.get('title')} - Score: {match['score']}%"
+                    # prof = match['profile']
+                    prof = match.get('profile', {})
+
+                    # line = f"{i}. {prof.get('name')} - {prof.get('title')} - Score: {match['score']}%"
+                    name = prof.get('name', 'Unknown')
+                    title = prof.get('title', 'Unknown')
+                    score = match.get('score', 'N/A')
+                    line = f"{i}. {name} - {title} - Score: {score}%"
+
                     report_lines.append(line)
                 report_lines.append("\n")
             report_dir = "reports"
@@ -329,11 +352,11 @@ class DocumentSimilarityApp:
 
         except Exception as e:
             print(f"❌ {e}")
-
+#Logout --------------------------------------------------------------------------
     def logout(self):
         self.current_user = None
         print("✅ Logged out successfully.")
-
+#MAIN FILE--------------------------------------------------------------------------
     def run(self):
         self.display_banner()
 
@@ -342,31 +365,51 @@ class DocumentSimilarityApp:
             return
 
         while True:
-            self.display_menu()
+            user_role = self.auth_manager.get_current_user_role()
+            options = {}
+
+            # Role-specific options
+            if user_role == "admin":
+                options["1"] = ("Upload Job Description", self.upload_job_description)
+                options["2"] = ("Generate Report", self.generate_report)
+
+            elif user_role == "recruiter":
+                options["1"] = ("Upload Resume", self.upload_resume)
+                options["2"] = ("Compare Documents", self.compare_documents)
+                options["3"] = ("View Profiles", self.view_profiles)
+                options["4"] = ("View Ranking Results", self.view_ranking_results)
+
+            # Common options (added after role-specific ones)
+            next_index = str(len(options) + 1)
+            options[next_index] = ("Logout", self.logout)
+            exit_index = str(int(next_index) + 1)
+            options[exit_index] = ("Exit", None)
+
+            # Display menu
+            print("\n📋 MAIN MENU")
+            for key, (label, _) in options.items():
+                print(f"{key}. {label}")
+
+            # Get choice
             choice = input("Enter your choice: ").strip()
 
-            if choice == '1':
-                self.upload_job_description()
-            elif choice == '2':
-                self.upload_resume()
-            elif choice == '3':
-                self.view_profiles()
-            elif choice == '4':
-                self.compare_documents()
-            elif choice == '5':
-                self.view_ranking_results()
-            elif choice == '6':
-                self.generate_report()
-            elif choice == '7':
-                self.logout()
-                if not self.login_flow():
-                    print("Exiting application.")
+            # Execute selected option
+            if choice in options:
+                label, action = options[choice]
+
+                if label == "Logout":
+                    action()
+                    if not self.login_flow():
+                        print("Exiting application.")
+                        break
+                elif label == "Exit":
+                    print("👋 Goodbye!")
                     break
-            elif choice == '8':
-                print("👋 Goodbye!")
-                break
+                else:
+                    action()
             else:
                 print("❌ Invalid option. Please try again.")
+
 
 if __name__ == "__main__":
     app = DocumentSimilarityApp()

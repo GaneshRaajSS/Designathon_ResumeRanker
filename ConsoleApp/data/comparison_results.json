@@ -275,4 +275,80 @@
         ],
         "experience": 2,
         "description": "Page 1 of 3\nSynopsis: Experienced Software Developer with 2+ years of expertise in building scalable\nbackend systems and Generative AI-powered solutions using Python, Django, DRF and Flask.\nSkilled in developing robust RESTful APIs and integrating advanced AI technologies such as\nOpenAI, Azure OpenAI, and RAG for enterprise applications. Proficient in prompt engineering,\nvector databases, and deploying AI-driven tools to improve developer productivity and business\nworkflows. Experienced in lever"
-      }}]}
+      }
+    }
+  ],
+  "aa85785c-6f00-4705-a802-387debf48057": [
+    {
+      "profile": {
+        "name": "Gaurav Meena",
+        "title": "software engineer",
+        "skills": [
+          "ember",
+          "github",
+          "python",
+          "machine learning",
+          "postgresql",
+          "flask",
+          "sqlite",
+          "linux",
+          "scala",
+          "large language model",
+          "computer vision",
+          "git",
+          "aws",
+          "postman",
+          "mysql",
+          "rag",
+          "go",
+          "prompt engineering",
+          "django",
+          "r",
+          "vector databases",
+          "sql",
+          "azure"
+        ],
+        "experience": 2,
+        "description": "Page 1 of 3\nSynopsis: Experienced Software Developer with 2+ years of expertise in building scalable\nbackend systems and Generative AI-powered solutions using Python, Django, DRF and Flask.\nSkilled in developing robust RESTful APIs and integrating advanced AI technologies such as\nOpenAI, Azure OpenAI, and RAG for enterprise applications. Proficient in prompt engineering,\nvector databases, and deploying AI-driven tools to improve developer productivity and business\nworkflows. Experienced in lever"
+      },
+      "score": 32.38,
+      "job_id": "aa85785c-6f00-4705-a802-387debf48057"
+    },
+    {
+      "profile": {
+        "name": "Ganesh Raaj S S",
+        "title": "software developer",
+        "skills": [
+          "mysql",
+          "ember",
+          "oracle",
+          "mongodb",
+          "scala",
+          "rag",
+          "javascript",
+          "css",
+          "dotnet",
+          "excel",
+          "react",
+          "azure",
+          "git",
+          "c#",
+          "less",
+          "postman",
+          "node.js",
+          "java",
+          "go",
+          "machine learning",
+          "sql",
+          "r",
+          "html",
+          "word"
+        ],
+        "experience": 0,
+        "description": "GANESH RAAJ S S\nSynopsis: Experienced software developer with hands-on in building and testing full-stack\nweb applications using .NET and React. Proficient in front-end and back-end technologies, API integration, and\ndatabase management. Completed multiple industry-oriented projects, demonstrating a strong foundation\nin modern web development practices. Continuously learning and exploring tools to build scalable and user-\nfriendly solutions.\nPROJECT EXPERIENCE\nFull Stack Development: Proficient "
+      },
+      "score": 32.29,
+      "job_id": "aa85785c-6f00-4705-a802-387debf48057"
+    }
+  ]
+}

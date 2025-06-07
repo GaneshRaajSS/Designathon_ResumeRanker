@@ -1,0 +1,100 @@
+known_skills = {
+    # Programming Languages & Frameworks
+    "python": ["python", "py"],
+    "java": ["java"],
+    "javascript": ["javascript", "js"],
+    "typescript": ["typescript", "ts"],
+    "c#": ["c#", "c sharp"],
+    "c++": ["c++", "cpp"],
+    "go": ["go", "golang"],
+    "ruby": ["ruby"],
+    "php": ["php"],
+    "swift": ["swift"],
+    "kotlin": ["kotlin"],
+    "scala": ["scala"],
+    "rust": ["rust"],
+    "perl": ["perl"],
+    "shell scripting": ["shell scripting", "bash", "shell"],
+
+    # Web Development
+    "react": ["react", "reactjs"],
+    "angular": ["angular", "angularjs"],
+    "vue.js": ["vue", "vue.js"],
+    "node.js": ["nodejs", "node.js", "node"],
+    "django": ["django"],
+    "flask": ["flask"],
+    "express": ["express"],
+    "laravel": ["laravel"],
+    "spring": ["spring", "spring boot"],
+    "dotnet": [".net", "dotnet", "dot net", "asp.net", "asp net", "asp.net core"],
+
+    # Databases
+    "mysql": ["mysql", "my sql", "my-sql"],
+    "ms sql": ["ms sql", "microsoft sql server", "sql server", "mssql"],
+    "postgresql": ["postgresql", "postgre sql", "postgres"],
+    "oracle sql": ["oracle sql", "oracle"],
+    "sqlite": ["sqlite"],
+    "mongodb": ["mongodb", "mongo db"],
+    "redis": ["redis"],
+    "cassandra": ["cassandra"],
+    "elasticsearch": ["elasticsearch", "es"],
+    "firebase": ["firebase"],
+
+    # Cloud & DevOps
+    "aws": ["aws", "amazon web services"],
+    "azure": ["azure", "microsoft azure"],
+    "gcp": ["gcp", "google cloud platform"],
+    "docker": ["docker"],
+    "kubernetes": ["kubernetes", "k8s"],
+    "terraform": ["terraform"],
+    "jenkins": ["jenkins"],
+    "ansible": ["ansible"],
+    "prometheus": ["prometheus"],
+    "grafana": ["grafana"],
+
+    # AI / ML / Data Science
+    "machine learning": ["machine learning", "ml"],
+    "deep learning": ["deep learning", "dl"],
+    "tensorflow": ["tensorflow", "tf"],
+    "pytorch": ["pytorch", "torch"],
+    "scikit-learn": ["scikit-learn", "sklearn"],
+    "keras": ["keras"],
+    "opencv": ["opencv"],
+    "nlp": ["nlp", "natural language processing"],
+    "computer vision": ["computer vision", "cv"],
+    "reinforcement learning": ["reinforcement learning", "rl"],
+
+    # Generative AI & LLMs
+    "generative ai": ["generative ai", "gen ai", "gen-ai", "generative artificial intelligence"],
+    "chatgpt": ["chatgpt", "chat gpt"],
+    "gpt": ["gpt", "gpt-3", "gpt-4", "openai gpt"],
+    "llm": ["llm", "large language model", "large language models"],
+    "transformers": ["transformers", "huggingface transformers"],
+    "diffusion models": ["diffusion models", "latent diffusion", "stable diffusion"],
+    "openai": ["openai"],
+    "bard": ["bard"],
+    "dall-e": ["dall-e", "dalle", "dall e"],
+    "whisper": ["whisper", "openai whisper"],
+
+    # Others / Tools
+    "excel": ["excel", "ms excel", "microsoft excel"],
+    "powerbi": ["powerbi", "power bi"],
+    "tableau": ["tableau"],
+    "git": ["git"],
+    "postman": ["postman"],
+    "vscode": ["vscode", "visual studio code", "vs code"],
+    "jira": ["jira"],
+    "slack": ["slack"],
+    "Nunit": ["nunit"],
+    "postman": ["Postman", "postman"],
+    "postman": ["Postman", "postman"],
+    "A-Frame": ["a-frame", "aframe"],
+    "Blender": ["blender", "Blender"],
+
+
+
+    # Operating Systems
+    "windows": ["windows", "microsoft windows"],
+    "linux": ["linux"],
+    "macos": ["macos", "osx", "mac os"],
+}
