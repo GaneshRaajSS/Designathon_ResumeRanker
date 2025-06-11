@@ -10,4 +10,4 @@ class ConsultantProfile(Base):
     skills = Column(Text, nullable=False)
     experience = Column(Text, nullable=False)
     resume_text = Column(Text, nullable=True)
-    content_hash = Column(String)
+    content_hash = Column(String(64), nullable=True)

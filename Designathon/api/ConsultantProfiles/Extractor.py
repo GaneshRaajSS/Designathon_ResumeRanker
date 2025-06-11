@@ -1,8 +1,9 @@
 import re
-import spacy
-from skills import known_skills  # your external skills list
+import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
 
-nlp = spacy.load("en_core_web_sm")
+# Download required resources once
+nltk.download('punkt')
 
 def extract_name(text: str) -> str | None:
     lines = text.strip().splitlines()
@@ -14,103 +15,91 @@ def extract_name(text: str) -> str | None:
             return line.strip()
     return None
 
-def extract_by_header(header_keywords, text, stop_keywords=None):
+def extract_email(text: str) -> str | None:
+    match = re.search(r'[\w\.-]+@[\w\.-]+', text)
+    return match.group(0) if match else None
+
+def extract_phone(text: str) -> str | None:
+    match = re.search(r'\+?\d[\d\s\-\(\)]{8,}\d', text)
+    return match.group(0) if match else None
+
+#
+def extract_by_section(text: str, headers, stop_words=None):
     lines = text.splitlines()
-    capturing = False
     section_lines = []
+    capturing = False
+    seen_lines = set()
+
     for line in lines:
-        clean_line = line.strip().lower()
-        if any(h.lower() in clean_line for h in header_keywords):
-            capturing = True
-            continue
-        if capturing and stop_keywords and any(s.lower() in clean_line for s in stop_keywords):
-            break
-        if capturing:
-            section_lines.append(line)
-    return "\n".join(section_lines).strip() if section_lines else None
+        clean = line.strip().lower()
 
-def extract_experience_years(exp_text: str) -> str:
-    if not exp_text:
-        return "N/A"
-    patterns = [
-        r'(\d+)\s*\+?\s*(years|yrs)',
-        r'(\d+)\s*(?:to|-)\s*(\d+)\s*(years|yrs)',
-        r'(\d+\.\d+)\s*(years|yrs)',
-    ]
-    for pattern in patterns:
-        matches = re.findall(pattern, exp_text, re.IGNORECASE)
-        if matches:
-            max_years = 0.0
-            for match in matches:
-                nums = [float(m) for m in match if m.replace('.', '', 1).isdigit()]
-                if nums:
-                    max_years = max(max_years, max(nums))
-            if max_years < 3:
-                return "N/A"
-            if max_years.is_integer():
-                return f"{int(max_years)} years"
-            else:
-                return f"{max_years} years"
-    return "N/A"
+        for h in headers:
+            if h.lower() in clean:
+                capturing = True
+                parts = re.split(rf'{re.escape(h)}[:\-]?', line, flags=re.IGNORECASE)
+                if len(parts) > 1 and parts[1].strip():
+                    content = parts[1].strip()
+                    if content not in seen_lines:
+                        section_lines.append(content)
+                        seen_lines.add(content)
+                break
+        else:
+            if capturing:
+                if stop_words and any(s.lower() in clean for s in stop_words):
+                    break
+                if re.search(r'working with|currently at|experience|from .* to|till date', clean):
+                    break
+                if line.strip() and line.strip() not in seen_lines:
+                    section_lines.append(line.strip())
+                    seen_lines.add(line.strip())
+
+    full_text = "\n".join(section_lines).strip()
+    return full_text if section_lines else None
+#
+
+def extract_yoe(text: str) -> str | None:
+    # regex to match patterns like "2 years", "3+ years", "2.5 years", etc.
+    match = re.search(r'(\d+(\.\d+)?\s*\+?\s*years?)', text, re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+#
 def extract_sections(text: str) -> dict:
-    doc = nlp(text)
+    experience_text = extract_by_section(
+        text,
+        ["Synopsis"],
+        ["Experience Summary", "Education", "Project Experience", "Areas of Experience", "Qualification"]
+    )
 
-    sections = {
-        "name": None,
-        "email": None,
-        "phone": None,
-        "skills": None,
-        "experience": None,
-        "experience_years": None,
-        "education": None,
-        "projects": None
+    yoe = extract_yoe(experience_text or "")
+
+    # Sentence tokenization
+    sentences = sent_tokenize(text)
+    
+    # Word tokenization (you can also store or use these as needed)
+    tokenized_sentences = [word_tokenize(sent) for sent in sentences]
+
+    return {
+        "name": extract_name(text),
+        "email": extract_email(text),
+        "phone": extract_phone(text),
+        "skills": extract_by_section(
+            text,
+            ["Skills", "Technical Skills", "Areas of Experience"],
+            ["Experience", "Education", "Qualification", "Page"]
+        ),
+        "experience": yoe if yoe else "null",
+        "education": extract_by_section(
+            text,
+            ["Education", "Qualification"],
+            ["Projects", "Certifications"]
+        ),
+        "projects": extract_by_section(
+            text,
+            ["Projects", "Project Work", "Project Experience", "POC", "Proof of Concept"],
+            ["Experience", "Education", "Qualification", "Synopsis", "Areas of Experience"]
+        ),
+        "sentences": sentences,
+        "tokens": tokenized_sentences 
     }
 
-    # Extract email and phone
-    email_match = re.search(r'[\w\.-]+@[\w\.-]+', text)
-    phone_match = re.search(r'\+?\d[\d\s\-\(\)]{8,}\d', text)
-    sections["email"] = email_match.group(0) if email_match else None
-    sections["phone"] = phone_match.group(0) if phone_match else None
-
-    # Extract name
-    extracted_name = extract_name(text)
-    if extracted_name:
-        sections["name"] = extracted_name
-    else:
-        for ent in doc.ents:
-            if ent.label_ == "PERSON":
-                sections["name"] = ent.text.strip()
-                break
-
-    # Extract skills
-    found_skills = set()
-    for chunk in doc.noun_chunks:
-        chunk_text = chunk.text.lower()
-        for skill in known_skills:
-            if skill in chunk_text:
-                found_skills.add(skill)
-    for token in doc:
-        token_lower = token.text.lower()
-        if token_lower in known_skills:
-            found_skills.add(token_lower)
-    formatted_skills = sorted(skill.title() for skill in found_skills)
-    sections["skills"] = ", ".join(formatted_skills) if formatted_skills else None
-
-    # Extract experience section text by header, else use whole text
-    exp_text = extract_by_header(["Experience", "Work Experience", "Professional Experience"], text, ["Education", "Projects"])
-    if exp_text:
-        sections["experience"] = exp_text.strip()
-        sections["experience_years"] = extract_experience_years(exp_text)
-    else:
-        sections["experience"] = None
-    sections["experience_years"] = "N/A"
-
-
-    # Extract clean years from experience text
-    sections["experience_years"] = extract_experience_years(exp_text)
-
-    # Extract education and projects
-    sections["education"] = extract_by_header(["Education", "Qualifications"], text, ["Projects", "Experience"])
-    sections["projects"] = extract_by_header(["Projects", "Project Work"], text, ["Experience", "Education"])
-
-    return sections
+#

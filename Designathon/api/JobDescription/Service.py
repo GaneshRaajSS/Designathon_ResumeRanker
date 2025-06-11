@@ -1,7 +1,7 @@
 # api/job_descriptions/service.py
 import uuid
 from sqlalchemy.exc import SQLAlchemyError
-from .Model import JobDescription
+from Model import JobDescription
 from JDdb import SessionLocal
 
 def create_job_description(data):
