@@ -1,18 +1,10 @@
 from fastapi import APIRouter, HTTPException, File, UploadFile, Form
-from .Schema import ConsultantCreate, ConsultantResponse
+from db.Schema import ConsultantCreate, ConsultantResponse
 from .Service import create_consultant, get_consultant
 import fitz
 
 
 router = APIRouter()
-
-@router.post("/consultants/", response_model=ConsultantResponse)
-def create_consultant_profile(profile: ConsultantCreate):
-    try:
-        created = create_consultant(profile.dict())
-        return created
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/consultants/{consultant_id}", response_model=ConsultantResponse)
 def read_consultant(consultant_id: str):
@@ -24,9 +16,6 @@ def read_consultant(consultant_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
-
-
 @router.post("/consultant/upload/")
 async def upload_consultant_resume(file: UploadFile = File(...)):
     try:
@@ -34,7 +23,7 @@ async def upload_consultant_resume(file: UploadFile = File(...)):
         doc = fitz.open(stream=contents, filetype="pdf")
         resume_text = "\n".join([page.get_text() for page in doc])
 
-        consultant, status = create_consultant({"resume_text": resume_text})
+        consultant, status = await create_consultant({"resume_text": resume_text})
 
         return {
             "status": status,
