@@ -84,8 +84,8 @@ def extract_sections(text: str) -> dict:
         "phone": extract_phone(text),
         "skills": extract_by_section(
             text,
-            ["Skills", "Technical Skills", "Areas of Experience"],
-            ["Experience", "Education", "Qualification", "Page"]
+            ["Skills", "Technical Skills", "Areas of Experience", "AreasofExperience"],
+            ["Experience", "Education", "Qualification", "Page", extract_name(text)]
         ),
         "experience": yoe if yoe else "null",
         "education": extract_by_section(
