@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     role = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    okta_id = Column(String(100), unique=True, nullable=True)
 
     # job_descriptions = relationship("JobDescription", back_populates="user")
 
@@ -34,7 +35,7 @@ class JobDescription(Base):
     embedding = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
+    end_date = Column(DateTime(timezone=True), nullable=False)
     # user = relationship("User", back_populates="job_descriptions")
     similarity_scores = relationship("SimilarityScore", back_populates="job_description")
     rankings = relationship("Ranking", back_populates="job_description")

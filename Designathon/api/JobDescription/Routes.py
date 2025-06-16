@@ -1,8 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from db.Schema import JobDescriptionResponse
+from db.Schema import JobDescriptionResponse, JobDescriptionCreate
 from .Service import create_job_description, get_job_description
 from docx import Document
 import fitz, re
+
+
 
 router = APIRouter()
 
@@ -68,3 +70,40 @@ async def upload_jd_file(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+@router.post("/job-descriptions/extract", response_model=JobDescriptionCreate)
+async def extract_jd_fields(file: UploadFile = File(...)):
+    try:
+        if file.filename.endswith(".pdf"):
+            content = extract_text_from_pdf(file)
+        elif file.filename.endswith(".docx"):
+            content = extract_text_from_docx(file)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format")
+
+        parsed_fields = parse_jd_fields(content)
+
+        # Fallbacks to satisfy validation
+        parsed_fields["title"] = parsed_fields.get("title") or "Untitled Role"
+        parsed_fields["description"] = parsed_fields.get("description") or "No description provided"
+        parsed_fields["skills"] = parsed_fields.get("skills") or "Not specified"
+        parsed_fields["experience"] = parsed_fields.get("experience") or "0 years"
+
+        return JobDescriptionCreate(**parsed_fields)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ✅ Step 2: Save user-edited JD data to DB
+@router.post("/job-descriptions/submit", response_model=JobDescriptionResponse)
+async def submit_jd(jd_data: JobDescriptionCreate):
+    try:
+        return await create_job_description(jd_data.dict())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+

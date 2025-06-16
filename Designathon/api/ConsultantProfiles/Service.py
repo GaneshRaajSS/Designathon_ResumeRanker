@@ -1,13 +1,13 @@
 import uuid
 import hashlib
 import json
-import re
+import re, os
 from sqlalchemy.exc import SQLAlchemyError
 from db.Model import ConsultantProfile
 from JDdb import SessionLocal
 from .Extractor import extract_sections
 from agents.embedding_service import get_embedding
-
+from azure.storage.blob import BlobServiceClient
 
 def compute_resume_hash(sections: dict, resume_text: str) -> str:
     normalized_text = re.sub(r'\s+', ' ', resume_text.lower().strip()) if resume_text else ""
@@ -76,7 +76,7 @@ async def create_consultant(data, skip_if_duplicate=True):
     db = SessionLocal()
     try:
         resume_text = data.get("resume_text", "")
-        parsed = extract_sections(resume_text)
+        parsed = await extract_sections(resume_text)
         resume_hash = compute_resume_hash(parsed, resume_text)
 
         # Check for existing by email
@@ -135,3 +135,26 @@ def get_consultant(consultant_id):
         raise Exception(f"Database error while fetching Consultant: {str(e)}")
     finally:
         db.close()
+
+#BLOB STORAGE
+blob_service_client = BlobServiceClient.from_connection_string(
+    f"DefaultEndpointsProtocol=https;AccountName={os.getenv('AZURE_STORAGE_ACCOUNT_NAME')};"
+    f"AccountKey={os.getenv('AZURE_STORAGE_ACCOUNT_KEY')};EndpointSuffix=core.windows.net"
+)
+container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
+
+def upload_resume_to_blob(consultant_id: str, file_content: bytes):
+    blob_path = f"resumes/{consultant_id}.pdf"
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_path)
+    blob_client.upload_blob(file_content, overwrite=True)
+
+def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
+    source_blob = f"resumes/{consultant_id}.pdf"
+    dest_blob = f"JD/{jd_id}/{consultant_id}.pdf"
+
+    source_blob_client = blob_service_client.get_blob_client(container=container_name, blob=source_blob)
+    dest_blob_client = blob_service_client.get_blob_client(container=container_name, blob=dest_blob)
+
+    # Copy source to destination
+    copy_url = source_blob_client.url
+    dest_blob_client.start_copy_from_url(copy_url)
