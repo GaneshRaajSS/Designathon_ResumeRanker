@@ -1,9 +1,14 @@
 # api/job_descriptions/service.py
 import uuid
+from datetime import datetime, timedelta, date
 from sqlalchemy.exc import SQLAlchemyError
 from db.Model import JobDescription
 from JDdb import SessionLocal
 from agents.embedding_service import get_embedding
+from enums import JobStatus
+from sqlalchemy.orm import Session
+
+
 # def create_job_description(data):
 #     db = SessionLocal()
 #     try:
@@ -47,14 +52,6 @@ from agents.embedding_service import get_embedding
 #         return jd
 #     finally:
 #         db.close()
-
-import uuid
-from sqlalchemy.exc import SQLAlchemyError
-from db.Model import JobDescription
-from JDdb import SessionLocal
-from agents.embedding_service import get_embedding
-
-
 async def create_job_description(data):
     db = SessionLocal()
     try:
@@ -67,11 +64,22 @@ async def create_job_description(data):
         text_for_embedding = data["title"] + "\n" + data["skills"] + "\n" + data["experience"]
         embedding = await get_embedding(text_for_embedding)
 
+        status = data.get("status", JobStatus.in_progress)
+        if isinstance(status, str):
+            status = JobStatus(status)
+
+        if status == JobStatus.completed:
+            end_date = datetime.utcnow().date()
+        else:
+            end_date = datetime.utcnow().date() + timedelta(days=90)
+
         if existing_jd:
             existing_jd.title = data["title"]
             existing_jd.description = data["description"]
             existing_jd.skills = data["skills"]
             existing_jd.experience = data["experience"]
+            existing_jd.status = status.value
+            existing_jd.end_date = end_date
             existing_jd.embedding = embedding
             db.commit()
             db.refresh(existing_jd)
@@ -84,6 +92,8 @@ async def create_job_description(data):
             description=data["description"],
             skills=data["skills"],
             experience=data["experience"],
+            status=status.value,
+            end_date=end_date,
             embedding=embedding
         )
         db.add(jd)
@@ -105,5 +115,22 @@ def get_job_description(jd_id):
         return jd
     except SQLAlchemyError as e:
         raise Exception(f"Database error while fetching JD: {str(e)}")
+    finally:
+        db.close()
+
+
+def mark_expired_jds_as_completed():
+    db: Session = SessionLocal()
+    try:
+        today = date.today()
+        updated = db.query(JobDescription).filter(
+            JobDescription.status != JobStatus.completed,
+            JobDescription.end_date < today
+        ).update({JobDescription.status: JobStatus.completed}, synchronize_session=False)
+        db.commit()
+        print(f"✅ Auto-completed {updated} expired job descriptions.")
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error marking expired JDs: {str(e)}")
     finally:
         db.close()

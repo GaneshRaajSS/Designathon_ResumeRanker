@@ -1,6 +1,20 @@
-import re
+import re, os
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
+from openai import AzureOpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = AzureOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    api_version=os.getenv("OPENAI_API_VERSION"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+)
+
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o-mini")
+
 
 # Download required resources once
 nltk.download('punkt')
@@ -57,13 +71,70 @@ def extract_by_section(text: str, headers, stop_words=None):
     return full_text if section_lines else None
 #
 
+async def gpt_extract_yoe(text: str) -> str | None:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an assistant that extracts and calculates **only** total full-time professional work experience from resumes.\n"
+                "🟡 Ignore internships, trainings, part-time, and academic projects.\n"
+                "🔵 If a date is marked 'Till date', treat it as June 2025.\n"
+                "🟢 Convert months into years with 1 decimal point precision.\n\n"
+                "✔ Examples:\n"
+                "• Jan 2020 – Jan 2022 → 2.0\n"
+                "• Oct 2024 – Till date (assume today is June 2025) → 0.8\n"
+                "• Feb 2019 – May 2023 → 4.3\n\n"
+                "Return **only a number**, like 3.5 years or 0.8 years — nothing else."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Resume:\n{text}\n\n"
+                "What is the total professional full-time work experience?"
+            )
+        }
+    ]
+
+    res = client.chat.completions.create(
+        model=GPT_MODEL,
+        messages=messages,
+        temperature=0.0,
+        max_tokens=20
+    )
+
+    result = res.choices[0].message.content.strip()
+
+    # Validate result format like: 0.8 or 3 or 2.5
+    if re.match(r'^(\d+(\.\d+)?)\s*years?$', result):
+        return result
+    return None
+
 def extract_yoe(text: str) -> str | None:
-    # regex to match patterns like "2 years", "3+ years", "2.5 years", etc.
-    match = re.search(r'(\d+(\.\d+)?\s*\+?\s*years?)', text, re.IGNORECASE)
-    return match.group(1).strip() if match else None
+    text = text.lower()
+
+    # If the surrounding context mentions internship, ignore it
+    if "intern" in text or "internship" in text:
+        return None
+
+    # Match patterns like "2.5 years", "2+ years", "3 yrs", etc.
+    year_match = re.search(r'(\d+(\.\d+)?)(\+)?\s*(years?|yrs?)', text)
+    if year_match:
+        years = round(float(year_match.group(1)), 1)
+        return f"{years} years"
+
+    # Match patterns like "18 months", "12 mos", etc.
+    month_match = re.search(r'(\d+)\s*(months?|mos?)', text)
+    if month_match:
+        months = int(month_match.group(1))
+        years = round(months / 12, 1)
+        return f"{years} years"
+
+    return None
+
 
 #
-def extract_sections(text: str) -> dict:
+async def extract_sections(text: str) -> dict:
     experience_text = extract_by_section(
         text,
         ["Synopsis"],
@@ -71,6 +142,8 @@ def extract_sections(text: str) -> dict:
     )
 
     yoe = extract_yoe(experience_text or "")
+    if not yoe:
+        yoe = await gpt_extract_yoe(text)
 
     # Sentence tokenization
     sentences = sent_tokenize(text)
