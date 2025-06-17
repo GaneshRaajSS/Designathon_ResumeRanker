@@ -1,15 +1,16 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from db.Schema import JobDescriptionResponse, JobDescriptionCreate
 from .Service import create_job_description, get_job_description
 from docx import Document
 import fitz, re
-
+from api.Auth.okta_auth import get_current_user, require_role
 
 
 router = APIRouter()
 
+
 @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
-def read_jd(jd_id: str):
+def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
     try:
         jd = get_job_description(jd_id)
         if not jd:

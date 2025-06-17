@@ -15,9 +15,8 @@ class User(Base):
     user_id = Column(String(36), primary_key=True, default=generate_uuid)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
-    role = Column(String(50), nullable=False)
+    role = Column(String(50), default="ARRequestor", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    okta_id = Column(String(100), unique=True, nullable=True)
 
     # job_descriptions = relationship("JobDescription", back_populates="user")
 
