@@ -2,23 +2,6 @@ from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional,List
 from enums import JobStatus, NotificationStatus, UserRoleStatus, WorkflowStepStatus, HistoryStatus, Enum
-# schemas/user.py
-# class UserCreate(BaseModel):
-#     name: str
-#     email: EmailStr
-#     role: UserRoleStatus
-#     okta_id: Optional[str] = None
-
-# class UserResponse(UserCreate):
-#     user_id: str
-#     name: str
-#     email: str
-#     role: str
-#     okta_id: Optional[str]
-#     created_at: datetime
-
-#     class Config:
-#         from_attributes = True
 
 class UserRoleStatus(str, Enum):
     admin = "admin"
@@ -126,7 +109,7 @@ class JobDescriptionCreate(BaseModel):
 
 class JobDescriptionResponse(JobDescriptionCreate):
     id: str
-    # user_id: str
+    user_id: str
     embedding: Optional[List[float]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

@@ -8,50 +8,6 @@ from agents.embedding_service import get_embedding
 from enums import JobStatus
 from sqlalchemy.orm import Session
 
-
-# def create_job_description(data):
-#     db = SessionLocal()
-#     try:
-#         jd_id = str(uuid.uuid4())
-#         jd = JobDescription(id=jd_id, **data)
-#         db.add(jd)
-#         db.commit()
-#         db.refresh(jd)
-#         return jd
-#     except SQLAlchemyError as e:
-#         db.rollback()
-#         raise Exception(f"Database error while creating JD: {str(e)}")
-#     finally:
-#         db.close()
-
-# async def create_job_description(data):
-#     db = SessionLocal()
-#     try:
-#         # jd = db.query(JobDescription).filter(JobDescription.id == data["id"]).first()
-#         jd = data.get("id", str(uuid.uuid4()))
-#         text_for_embedding = data["title"] + "\n" + data["skills"] + "\n" + data["experience"]
-#         embedding = await get_embedding(text_for_embedding)
-#         if jd:
-#             jd.title = data["title"]
-#             jd.description = data["description"]
-#             jd.skills = data["skills"]
-#             jd.experience = data["experience"]
-#             jd.embedding = embedding
-#         else:
-#             jd = JobDescription(
-#                 id=data["id"],
-#                 title=data["title"],
-#                 description=data["description"],
-#                 skills=data["skills"],
-#                 experience=data["experience"],
-#                 embedding=embedding
-#             )
-#             db.add(jd)
-#         db.commit()
-#         db.refresh(jd)
-#         return jd
-#     finally:
-#         db.close()
 async def create_job_description(data):
     db = SessionLocal()
     try:
@@ -71,7 +27,7 @@ async def create_job_description(data):
         if status == JobStatus.completed:
             end_date = datetime.utcnow().date()
         else:
-            end_date = datetime.utcnow().date() + timedelta(days=90)
+            end_date = datetime.utcnow().date() + timedelta(weeks=3)
 
         if existing_jd:
             existing_jd.title = data["title"]
@@ -94,7 +50,8 @@ async def create_job_description(data):
             experience=data["experience"],
             status=status.value,
             end_date=end_date,
-            embedding=embedding
+            embedding=embedding,
+            user_id=data["user_id"]
         )
         db.add(jd)
         db.commit()

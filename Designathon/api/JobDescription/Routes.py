@@ -4,20 +4,45 @@ from .Service import create_job_description, get_job_description
 from docx import Document
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
-
+from JDdb import SessionLocal
+from db.Model import User
 
 router = APIRouter()
 
 
 @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
 def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
+    db = SessionLocal()
+    # try:
+    #     jd = get_job_description(jd_id)
+    #     if not jd:
+    #         raise HTTPException(status_code=404, detail="Job Description not found")
+    #     return jd
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=str(e))
     try:
+        # ✅ Get current user ID by their email from JWT
+
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="User not found")
+
         jd = get_job_description(jd_id)
         if not jd:
             raise HTTPException(status_code=404, detail="Job Description not found")
+
+        # ✅ Check if this JD was created by the logged-in user
+        if str(jd.user_id) != str(current_user.user_id):
+            return {
+                "error": "Access denied",
+                "jd_user_id": jd.user_id,
+                "current_user_user_id": current_user.user_id,
+                "jwt_email": user["sub"]
+            }
         return jd
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        db.close()
 
 
 def extract_text_from_pdf(file: UploadFile) -> str:
@@ -51,7 +76,8 @@ def parse_jd_fields(text: str) -> dict:
 
 
 @router.post("/job-descriptions/upload", response_model=JobDescriptionResponse)
-async def upload_jd_file(file: UploadFile = File(...)):
+async def upload_jd_file(file: UploadFile = File(...), user=Depends(require_role(["ARRequestor"]))):
+    db = SessionLocal()
     try:
         if file.filename.endswith(".pdf"):
             content = extract_text_from_pdf(file)
@@ -67,16 +93,23 @@ async def upload_jd_file(file: UploadFile = File(...)):
         if not parsed_fields["title"] or not parsed_fields["skills"] or not parsed_fields["experience"]:
             raise HTTPException(status_code=400, detail="Missing required JD fields in document.")
 
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="User not found")
+        parsed_fields["user_id"] = current_user.user_id
+
         return await create_job_description(parsed_fields)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
+    finally:
+        db.close()
 
 
 
 @router.post("/job-descriptions/extract", response_model=JobDescriptionCreate)
-async def extract_jd_fields(file: UploadFile = File(...)):
+async def extract_jd_fields(file: UploadFile = File(...), user=Depends(require_role(["ARRequestor"]))):
     try:
         if file.filename.endswith(".pdf"):
             content = extract_text_from_pdf(file)
@@ -101,10 +134,18 @@ async def extract_jd_fields(file: UploadFile = File(...)):
 
 # ✅ Step 2: Save user-edited JD data to DB
 @router.post("/job-descriptions/submit", response_model=JobDescriptionResponse)
-async def submit_jd(jd_data: JobDescriptionCreate):
+async def submit_jd(jd_data: JobDescriptionCreate, user=Depends(require_role(["ARRequestor"]))):
+    db = SessionLocal()
     try:
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="User not found")
+        # Inject user_id into jd_data
+        jd_dict = jd_data.dict()
+        jd_dict["user_id"] = current_user.user_id
         return await create_job_description(jd_data.dict())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+    finally:
+        db.close()
 

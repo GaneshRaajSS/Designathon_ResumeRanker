@@ -161,7 +161,7 @@ container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
 def upload_resume_to_blob(consultant_id: str, file_content: bytes):
     blob_path = f"resumes/{consultant_id}.pdf"
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_path)
-    blob_client.upload_blob(file_content, overwrite=True)
+    blob_client.upload_blob(file_content, overwrite=True, standard_blob_tier="Hot")
 
 def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
     source_blob = f"resumes/{consultant_id}.pdf"
@@ -172,4 +172,4 @@ def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
 
     # Copy source to destination
     copy_url = source_blob_client.url
-    dest_blob_client.start_copy_from_url(copy_url)
+    dest_blob_client.start_copy_from_url(copy_url, standard_blob_tier="Cool")
