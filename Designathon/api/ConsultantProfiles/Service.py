@@ -8,6 +8,13 @@ from JDdb import SessionLocal
 from .Extractor import extract_sections
 from agents.embedding_service import get_embedding
 from azure.storage.blob import BlobServiceClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+RECRUITER_EMAILS = os.getenv("RECRUITER_EMAILS", "")
+RECRUITER_LIST = [email.strip() for email in RECRUITER_EMAILS.split(",") if email]
 
 def compute_resume_hash(sections: dict, resume_text: str) -> str:
     normalized_text = re.sub(r'\s+', ' ', resume_text.lower().strip()) if resume_text else ""
@@ -79,6 +86,12 @@ async def create_consultant(data, skip_if_duplicate=True):
         parsed = await extract_sections(resume_text)
         resume_hash = compute_resume_hash(parsed, resume_text)
 
+        user_email = parsed.get("email") or data.get("email")
+        if user_email in RECRUITER_LIST:
+            role = "Recruiter"
+        else:
+            role = "ARRequestor"
+
         # Check for existing by email
         existing = db.query(ConsultantProfile).filter_by(email=parsed.get("email")).first()
 
@@ -98,6 +111,7 @@ async def create_consultant(data, skip_if_duplicate=True):
             existing.resume_text = resume_text
             existing.content_hash = resume_hash
             existing.embedding = await get_embedding(text_for_embedding)
+            existing.role = role 
 
             db.commit()
             db.refresh(existing)
@@ -114,7 +128,8 @@ async def create_consultant(data, skip_if_duplicate=True):
             experience=experience,
             resume_text=resume_text,
             content_hash=resume_hash,
-            embedding=embedding
+            embedding=embedding,
+            role=role
         )
         db.add(consultant)
         db.commit()

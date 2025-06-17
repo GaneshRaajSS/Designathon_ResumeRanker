@@ -28,14 +28,12 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     role: UserRoleStatus
-    okta_id: Optional[str] = None
 
 class UserResponse(BaseModel):
     user_id: str
     name: str
     email: str
     role: str
-    okta_id: Optional[str]
     created_at: datetime
 
     class Config:

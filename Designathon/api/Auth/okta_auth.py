@@ -1,52 +1,22 @@
-# import os
-# import json
-# from fastapi import Depends, HTTPException
-# from fastapi.security import OAuth2AuthorizationCodeBearer
-# from jose import jwt, JWTError, jwk
-# from urllib.request import urlopen
-# from sqlalchemy.orm import Session
-# from dotenv import load_dotenv
+from fastapi import Request, HTTPException, Depends
+from jose import jwt, JWTError
+import os
 
-# from JDdb import get_db  # Your DB Session provider
-# from api.UserProfiles.Service import create_user_if_not_exists
+JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
 
-# load_dotenv()
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-# OKTA_DOMAIN = os.getenv("OKTA_DOMAIN")
-# OKTA_CLIENT_ID = os.getenv("OKTA_CLIENT_ID")
-# OKTA_ISSUER = os.getenv("OKTA_ISSUER")
-# JWKS_URL = f"{OKTA_ISSUER}/v1/keys"
-# ADMIN_EMAILS = os.getenv("ADMIN_EMAILS", "").split(",")
-
-# oauth2_scheme = OAuth2AuthorizationCodeBearer(
-#     authorizationUrl=f"{OKTA_ISSUER}/v1/authorize",
-#     tokenUrl=f"{OKTA_ISSUER}/v1/token"
-# )
-
-# with urlopen(JWKS_URL) as resp:
-#     jwks = json.loads(resp.read())
-
-# def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-#     try:
-#         unverified_header = jwt.get_unverified_header(token)
-#         kid = unverified_header.get("kid")
-#         if not kid:
-#             raise HTTPException(status_code=401, detail="Missing kid")
-
-#         raw_key = next((k for k in jwks["keys"] if k["kid"] == kid), None)
-#         if not raw_key:
-#             raise HTTPException(status_code=401, detail="Key not found in JWKS")
-
-#         key = jwk.construct(raw_key)
-#         payload = jwt.decode(
-#             token,
-#             key,
-#             algorithms=["RS256"],
-#             audience=OKTA_CLIENT_ID,
-#             issuer=OKTA_ISSUER,
-#         )
-
-#         user = create_user_if_not_exists(db, payload, admin_emails=ADMIN_EMAILS)
-#         return user
-#     except JWTError as e:
-#         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
+def require_role(roles: list[str]):
+    def checker(user=Depends(get_current_user)):
+        if user["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Access denied")
+        return user
+    return checker
