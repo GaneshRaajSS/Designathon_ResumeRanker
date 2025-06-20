@@ -1,10 +1,13 @@
-from db.Model import SimilarityScore
-from db.Model import Ranking
+from db.Model import SimilarityScore, JobDescription, User, Ranking, WorkflowStatus
+from api.EmailNotification.report_service import generate_consultant_report
+from api.EmailNotification.Service import send_consultant_report_email
 from .similarity_service import compute_cosine_similarity
 from .embedding_service import gpt_score_resume
 from api.JDHistory.Service import create_history_entry
 from api.ConsultantProfiles.Service import move_resume_to_jd_folder
 from JDdb import SessionLocal
+from enums import WorkflowStepStatus, NotificationStatus, HistoryStatus
+from sqlalchemy.orm import Session
 
 async def rank_profiles(jd, profiles):
     scores = compute_cosine_similarity(jd.embedding, [p.embedding for p in profiles])
@@ -28,12 +31,70 @@ async def rank_profiles(jd, profiles):
             create_history_entry({
                 "jd_id": jd.id,
                 "profile_id": profile.id,
-                "action": "gpt-ranked",
+                "action": HistoryStatus.Shortlisted,
             })
             top_ranked_profiles.append(profile)
         db.commit()
 
+        # for ranked in top_ranked_profiles:
+        #     await move_resume_to_jd_folder(ranked.id, jd.id)
         for ranked in top_ranked_profiles:
             await move_resume_to_jd_folder(ranked.id, jd.id)
+
+        return [
+            {
+                "consultant_id": profile.id,
+                "name": profile.name,
+                "email" : profile.email,
+                "score": score,
+                "explanation": explanation
+            }
+            for profile, score,explanation in reranked
+        ]
+    
     finally:
         db.close()
+
+async def finalize_and_notify(jd_id: str, ranked_consultants: list[dict]):
+    db = SessionLocal()
+    try:
+        jd = db.query(JobDescription).filter_by(id=jd_id).first()
+        if not jd:
+            print("❌ JD not found.")
+            return
+
+        ar_user = db.query(User).filter_by(user_id=jd.user_id).first()
+        if not ar_user:
+            print("❌ No ARRequestor found for JD.")
+            return
+
+        # Generate PDF with full JD + consultants
+        pdf_url = generate_consultant_report(jd_id, ranked_consultants, jd_obj=jd)
+
+        # Send email with consultant details
+        print(f"📨 Sending email to: {ar_user.email}")
+        status = send_consultant_report_email(ar_user.email, jd_id, pdf_url, db, ranked_consultants)
+        print(f"📧 Email sent status: {status}")
+
+    except Exception as e:
+        print(f"❌ Error during finalize_and_notify: {e}")
+    finally:
+        db.close()
+
+def init_or_update_workflow_status(db: Session, jd_id: str):
+    existing = db.query(WorkflowStatus).filter_by(jd_id=jd_id).first()
+
+    if existing:
+        existing.comparison_status = WorkflowStepStatus.completed
+        existing.ranking_status = WorkflowStepStatus.completed
+        existing.email_status = NotificationStatus
+    else:
+        new_status = WorkflowStatus(
+            jd_id=jd_id,
+            comparison_status=WorkflowStepStatus.completed,
+            ranking_status=WorkflowStepStatus.pending,
+            email_status=NotificationStatus.pending,
+        )
+        db.add(new_status)
+
+    db.commit()

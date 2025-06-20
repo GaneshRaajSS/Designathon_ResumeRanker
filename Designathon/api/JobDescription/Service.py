@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timedelta, date
 from sqlalchemy.exc import SQLAlchemyError
-from db.Model import JobDescription
+from db.Model import JobDescription, WorkflowStatus
 from JDdb import SessionLocal
 from agents.embedding_service import get_embedding
 from enums import JobStatus
@@ -22,7 +22,10 @@ async def create_job_description(data):
 
         status = data.get("status", JobStatus.in_progress)
         if isinstance(status, str):
-            status = JobStatus(status)
+            try:
+                status = JobStatus(status)
+            except ValueError:
+                raise Exception(f"Invalid status value: {status}")
 
         if status == JobStatus.completed:
             end_date = datetime.utcnow().date()
@@ -54,6 +57,16 @@ async def create_job_description(data):
             user_id=data["user_id"]
         )
         db.add(jd)
+        db.flush()
+
+        workflow = WorkflowStatus(
+            jd_id=jd.id,
+            comparison_status="Pending",
+            ranking_status="Pending",
+            email_status="Pending"
+        )
+        db.add(workflow)
+
         db.commit()
         db.refresh(jd)
         return jd

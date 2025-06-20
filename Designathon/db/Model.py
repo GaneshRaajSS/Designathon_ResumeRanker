@@ -49,7 +49,7 @@ class ConsultantProfile(Base):
     name = Column(String(100), nullable=False)
     email = Column(String(100),  unique=True, nullable=False)
     skills = Column(Text, nullable=False)
-    experience = Column(Text, nullable=False)
+    experience = Column(String(64), nullable=False)
     resume_text = Column(Text)
     availability = Column(Boolean, default=True)
     content_hash = Column(String(64))

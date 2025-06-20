@@ -98,7 +98,9 @@ async def upload_jd_file(file: UploadFile = File(...), user=Depends(require_role
             raise HTTPException(status_code=401, detail="User not found")
         parsed_fields["user_id"] = current_user.user_id
 
-        return await create_job_description(parsed_fields)
+        jd = await create_job_description(parsed_fields)
+        return JobDescriptionResponse.from_orm(jd)
+        # return await create_job_description(parsed_fields)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -143,7 +145,7 @@ async def submit_jd(jd_data: JobDescriptionCreate, user=Depends(require_role(["A
         # Inject user_id into jd_data
         jd_dict = jd_data.dict()
         jd_dict["user_id"] = current_user.user_id
-        return await create_job_description(jd_data.dict())
+        return await create_job_description(jd_dict)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

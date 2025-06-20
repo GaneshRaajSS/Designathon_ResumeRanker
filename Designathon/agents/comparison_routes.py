@@ -4,6 +4,8 @@ from db.Model import JobDescription
 from db.Model import ConsultantProfile
 from db.Model import Ranking
 from agents.ranking_service import rank_profiles
+from agents.ranking_service import finalize_and_notify
+
 
 router = APIRouter()
 
@@ -26,11 +28,9 @@ def compare_and_rank(jd_id: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(run_ranking_task, jd_id)
     return {"message": "Ranking queued"}
 
-
 async def run_ranking_task(jd_id):
     db = SessionLocal()
     try:
-        # Check if JD already has rankings
         existing_ranking = db.query(Ranking).filter(Ranking.jd_id == jd_id).first()
         if existing_ranking:
             print(f"JD {jd_id} already ranked. Skipping...")
@@ -42,9 +42,11 @@ async def run_ranking_task(jd_id):
             return
 
         profiles = db.query(ConsultantProfile).all()
-        await rank_profiles(jd, profiles)
+        ranked_profiles = await rank_profiles(jd, profiles)
+
+        # ⬇️ Trigger report + email
+        await finalize_and_notify(jd.id, ranked_profiles)
 
     finally:
         active_jobs.discard(jd_id)
         db.close()
-
