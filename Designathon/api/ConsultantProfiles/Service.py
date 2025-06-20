@@ -1,6 +1,6 @@
 import uuid
 import hashlib
-import json
+import json, traceback
 import re, os
 from sqlalchemy.exc import SQLAlchemyError
 from db.Model import ConsultantProfile
@@ -9,12 +9,7 @@ from .Extractor import extract_sections
 from agents.embedding_service import get_embedding
 from azure.storage.blob import BlobServiceClient
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-RECRUITER_EMAILS = os.getenv("RECRUITER_EMAILS", "")
-RECRUITER_LIST = [email.strip() for email in RECRUITER_EMAILS.split(",") if email]
+from azure.storage.blob import StandardBlobTier
 
 def compute_resume_hash(sections: dict, resume_text: str) -> str:
     normalized_text = re.sub(r'\s+', ' ', resume_text.lower().strip()) if resume_text else ""
@@ -79,18 +74,13 @@ def safe_value(parsed_val, fallback_val, min_len=3):
 #     finally:
 #         db.close()
 
+
 async def create_consultant(data, skip_if_duplicate=True):
     db = SessionLocal()
     try:
         resume_text = data.get("resume_text", "")
         parsed = await extract_sections(resume_text)
         resume_hash = compute_resume_hash(parsed, resume_text)
-
-        user_email = parsed.get("email") or data.get("email")
-        if user_email in RECRUITER_LIST:
-            role = "Recruiter"
-        else:
-            role = "ARRequestor"
 
         # Check for existing by email
         existing = db.query(ConsultantProfile).filter_by(email=parsed.get("email")).first()
@@ -111,7 +101,6 @@ async def create_consultant(data, skip_if_duplicate=True):
             existing.resume_text = resume_text
             existing.content_hash = resume_hash
             existing.embedding = await get_embedding(text_for_embedding)
-            existing.role = role 
 
             db.commit()
             db.refresh(existing)
@@ -125,11 +114,10 @@ async def create_consultant(data, skip_if_duplicate=True):
             name=parsed.get("name") or data.get("name"),
             email=parsed.get("email") or data.get("email"),
             skills=skills,
-            experience=experience,
+            experience= experience,
             resume_text=resume_text,
             content_hash=resume_hash,
             embedding=embedding,
-            role=role
         )
         db.add(consultant)
         db.commit()
@@ -138,6 +126,7 @@ async def create_consultant(data, skip_if_duplicate=True):
 
     except SQLAlchemyError as e:
         db.rollback()
+        traceback.print_exc()
         raise Exception(f"Database error while creating/updating Consultant: {str(e)}")
     finally:
         db.close()
@@ -161,9 +150,9 @@ container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
 def upload_resume_to_blob(consultant_id: str, file_content: bytes):
     blob_path = f"resumes/{consultant_id}.pdf"
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_path)
-    blob_client.upload_blob(file_content, overwrite=True)
+    blob_client.upload_blob(file_content, overwrite=True, standard_blob_tier=StandardBlobTier.Hot)
 
-def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
+async def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
     source_blob = f"resumes/{consultant_id}.pdf"
     dest_blob = f"JD/{jd_id}/{consultant_id}.pdf"
 
@@ -172,4 +161,4 @@ def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
 
     # Copy source to destination
     copy_url = source_blob_client.url
-    dest_blob_client.start_copy_from_url(copy_url)
+    dest_blob_client.start_copy_from_url(copy_url, standard_blob_tier=StandardBlobTier.Cool)

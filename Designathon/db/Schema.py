@@ -1,28 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional,List
-from enums import JobStatus, NotificationStatus, UserRoleStatus, WorkflowStepStatus, HistoryStatus, Enum
-# schemas/user.py
-# class UserCreate(BaseModel):
-#     name: str
-#     email: EmailStr
-#     role: UserRoleStatus
-#     okta_id: Optional[str] = None
-
-# class UserResponse(UserCreate):
-#     user_id: str
-#     name: str
-#     email: str
-#     role: str
-#     okta_id: Optional[str]
-#     created_at: datetime
-
-#     class Config:
-#         from_attributes = True
-
-class UserRoleStatus(str, Enum):
-    admin = "admin"
-    user = "user"
+from enums import JobStatus, NotificationStatus, UserRoleStatus, WorkflowStepStatus, HistoryStatus
 
 class UserCreate(BaseModel):
     name: str
@@ -37,7 +16,9 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
+
 
 
 # schemas/similarity_score.py
@@ -51,7 +32,9 @@ class SimilarityScoreResponse(SimilarityScoreCreate):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
+
 
 
 # schemas/ranking.py
@@ -65,7 +48,9 @@ class RankingResponse(RankingCreate):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
+
 
 
 # schemas/email_notification.py
@@ -80,7 +65,9 @@ class EmailNotificationResponse(EmailNotificationCreate):
     sent_at: Optional[datetime]
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
+
 
 
 # schemas/workflow_status.py
@@ -88,7 +75,7 @@ class WorkflowStatusCreate(BaseModel):
     jd_id: str
     comparison_status: WorkflowStepStatus
     ranking_status: WorkflowStepStatus
-    email_status: WorkflowStepStatus
+    email_status: NotificationStatus
 
 class WorkflowStatusResponse(WorkflowStatusCreate):
     workflow_id: str
@@ -96,7 +83,8 @@ class WorkflowStatusResponse(WorkflowStatusCreate):
     updated_at: Optional[datetime]
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
 
 
 # schemas/ConsultantProfiles.py
@@ -113,7 +101,9 @@ class ConsultantResponse(ConsultantCreate):
     id: str
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
+
 
 
 # schemas/JD.py
@@ -122,17 +112,18 @@ class JobDescriptionCreate(BaseModel):
     description: str = Field(..., min_length=10)
     skills: str = Field(..., min_length=3)
     experience: str = Field(..., min_length=2)
-    status: JobStatus
+    status: Optional[JobStatus] = JobStatus.in_progress
 
 class JobDescriptionResponse(JobDescriptionCreate):
     id: str
-    # user_id: str
+    user_id: str
     embedding: Optional[List[float]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True
 
 
 # schemas/JDProfileHistory.py
@@ -151,4 +142,5 @@ class JDProfileHistoryResponse(JDProfileHistoryCreate):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        # from_attributes = True
+        orm_mode = True

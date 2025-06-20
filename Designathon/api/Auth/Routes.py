@@ -1,121 +1,3 @@
-# # auth/routes.py
-# from fastapi import APIRouter, Request, HTTPException, Depends
-# from fastapi.responses import RedirectResponse
-# from jose import jwt, JWTError
-# from urllib.parse import urlencode
-# from db.Model import User
-# from JDdb import SessionLocal
-# import os, httpx, secrets
-# from datetime import datetime, timedelta
-# from dotenv import load_dotenv
-
-# load_dotenv()
-
-# router = APIRouter()
-
-# CLIENT_ID = os.getenv("OKTA_CLIENT_ID")
-# CLIENT_SECRET = os.getenv("OKTA_CLIENT_SECRET")
-# ISSUER = os.getenv("OKTA_ISSUER")
-# REDIRECT_URI = os.getenv("OKTA_REDIRECT_URI")
-# AUTH_ENDPOINT = f"{ISSUER}/v1/authorize"
-# TOKEN_ENDPOINT = f"{ISSUER}/v1/token"
-# JWKS_URI = f"{ISSUER}/v1/keys"
-# JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
-# RECRUITER_LIST = [e.strip() for e in os.getenv("RECRUITER_EMAILS", "").split(",") if e.strip()]
-
-# STATE_STORE = {}
-
-# @router.get("/login")
-# def login():
-#     state = secrets.token_urlsafe(16)
-#     STATE_STORE[state] = True
-#     params = {
-#         "client_id": CLIENT_ID,
-#         "response_type": "code",
-#         "scope": "openid profile email",
-#         "redirect_uri": REDIRECT_URI,
-#         "state": state,
-#     }
-#     return RedirectResponse(url=f"{AUTH_ENDPOINT}?{urlencode(params)}")
-
-# @router.get("/logout")
-# def logout():
-#     response = RedirectResponse("/docs")
-#     response.delete_cookie("access_token")
-#     return response
-
-# @router.get("/callback")
-# async def callback(code: str, state: str):
-#     if state not in STATE_STORE:
-#         raise HTTPException(status_code=400, detail="Invalid state")
-
-#     async with httpx.AsyncClient() as client:
-#         token_response = await client.post(
-#             TOKEN_ENDPOINT,
-#             headers={"Content-Type": "application/x-www-form-urlencoded"},
-#             data={
-#                 "grant_type": "authorization_code",
-#                 "code": code,
-#                 "redirect_uri": REDIRECT_URI,
-#                 "client_id": CLIENT_ID,
-#                 "client_secret": CLIENT_SECRET,
-#             },
-#         )
-#         token_data = token_response.json()
-#         if "id_token" not in token_data:
-#             raise HTTPException(status_code=400, detail="Token exchange failed")
-
-#         id_token = token_data["id_token"]
-#         jwks_response = await client.get(JWKS_URI)
-#         jwks_data = jwks_response.json()
-#         header = jwt.get_unverified_header(id_token)
-#         kid = header.get("kid")
-#         key = next((k for k in jwks_data["keys"] if k["kid"] == kid), None)
-#         if not key:
-#             raise HTTPException(status_code=401, detail="Key not found in JWKS")
-
-#         try:
-#             payload = jwt.decode(
-#                 id_token,
-#                 key,
-#                 algorithms=["RS256"],
-#                 audience=CLIENT_ID,
-#                 issuer=ISSUER,
-#                 options={"verify_at_hash": False},
-#             )
-#         except JWTError as e:
-#             print("JWT verification failed:", str(e))
-#             raise HTTPException(status_code=401, detail="Invalid token")
-
-#         email = payload.get("email")
-#         name = payload.get("name", "Unknown")
-#         role = "Recruiter" if email in RECRUITER_LIST else "ARRequestor"
-
-#         db = SessionLocal()
-#         user = db.query(User).filter_by(email=email).first()
-#         if not user:
-#             user = User(email=email, name=name, role=role)
-#             db.add(user)
-#             db.commit()
-#             db.refresh(user)
-
-#         token_payload = {
-#             "sub": email,
-#             "role": user.role,
-#             "exp": datetime.utcnow() + timedelta(hours=1),
-#         }
-#         access_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
-#         response = RedirectResponse("/docs")
-#         response.set_cookie(
-#             key="access_token",
-#             value=access_token,
-#             httponly=True,
-#             secure=False,
-#             samesite="lax",
-#             max_age=3600
-#         )
-#         return response
-
 # auth/routes.py
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse
@@ -251,3 +133,11 @@ async def protected_redoc(request: Request):
         return get_redoc_html(openapi_url="/openapi.json", title="Redoc")
     except HTTPException:
         return RedirectResponse("/login")
+
+
+@router.get("/me")
+async def get_me(user=Depends(get_current_user)):
+    return {
+        "email": user["sub"],
+        "role": user["role"]
+    }

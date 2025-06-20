@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Depends
 from db.Schema import ConsultantResponse
 from .Service import create_consultant, get_consultant, upload_resume_to_blob
 import fitz, os
+from api.Auth.okta_auth import get_current_user, require_role
 
 router = APIRouter()
 
 @router.get("/consultants/{consultant_id}", response_model=ConsultantResponse)
-def read_consultant(consultant_id: str):
+def read_consultant(consultant_id: str, user=Depends(require_role(["Recruiter"]))):
     try:
         consultant = get_consultant(consultant_id)
         if not consultant:
@@ -24,7 +25,7 @@ def read_consultant(consultant_id: str):
         # raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/consultant/upload/")
-async def upload_consultant_resume(file: UploadFile = File(...)):
+async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(require_role(["Recruiter"]))):
     try:
         contents = await file.read()
         doc = fitz.open(stream=contents, filetype="pdf")
@@ -48,6 +49,8 @@ async def upload_consultant_resume(file: UploadFile = File(...)):
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error Processing Resume: {str(e)}")
 
 # @router.post("/consultant/upload/")

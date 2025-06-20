@@ -18,14 +18,14 @@ class User(Base):
     role = Column(String(50), default="ARRequestor", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # job_descriptions = relationship("JobDescription", back_populates="user")
+    job_descriptions = relationship("JobDescription", back_populates="user")
 
 
 class JobDescription(Base):
     __tablename__ = "job_descriptions"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    # user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False)
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     skills = Column(Text, nullable=False)
@@ -35,7 +35,7 @@ class JobDescription(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     end_date = Column(DateTime(timezone=True), nullable=False)
-    # user = relationship("User", back_populates="job_descriptions")
+    user = relationship("User", back_populates="job_descriptions")
     similarity_scores = relationship("SimilarityScore", back_populates="job_description")
     rankings = relationship("Ranking", back_populates="job_description")
     emails = relationship("EmailNotification", back_populates="job_description")
@@ -49,7 +49,7 @@ class ConsultantProfile(Base):
     name = Column(String(100), nullable=False)
     email = Column(String(100),  unique=True, nullable=False)
     skills = Column(Text, nullable=False)
-    experience = Column(Text, nullable=False)
+    experience = Column(String(64), nullable=False)
     resume_text = Column(Text)
     availability = Column(Boolean, default=True)
     content_hash = Column(String(64))
