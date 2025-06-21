@@ -15,17 +15,9 @@ def read_consultant(consultant_id: str, user=Depends(require_role(["Recruiter"])
         return consultant
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-# def read_consultant(consultant_id: str, token_data: dict = Depends(verify_token)):
-#     try:
-#         consultant = get_consultant(consultant_id)
-#         if not consultant:
-#             raise HTTPException(status_code=404, detail="Consultant not found")
-#         return consultant
-#     except Exception as e:
-        # raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/consultant/upload/")
-async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(require_role(["Recruiter"]))):
+async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(require_role(["User"]))):
     try:
         contents = await file.read()
         doc = fitz.open(stream=contents, filetype="pdf")
@@ -52,27 +44,3 @@ async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(re
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error Processing Resume: {str(e)}")
-
-# @router.post("/consultant/upload/")
-# async def upload_consultant_resume(file: UploadFile = File(...)):
-#     try:
-#         contents = await file.read()
-#         doc = fitz.open(stream=contents, filetype="pdf")
-#         resume_text = "\n".join([page.get_text() for page in doc])
-
-#         consultant, status = await create_consultant({"resume_text": resume_text})
-
-#         return {
-#             "status": status,
-#             "consultant": {
-#                 "id": consultant.id,
-#                 "name": consultant.name,
-#                 "email": consultant.email,
-#                 "skills": consultant.skills,
-#                 "experience": consultant.experience,
-#                 "resume_text": consultant.resume_text
-#             }
-#         }
-
-#     except Exception as e:
-        # raise HTTPException(status_code=500, detail=f"Error Processing Resume: {str(e)}")

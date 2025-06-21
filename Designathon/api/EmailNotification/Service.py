@@ -6,6 +6,7 @@ import os, base64, requests
 from datetime import datetime
 from enums import WorkflowStepStatus, NotificationStatus
 import time
+from api.EmailNotification.report_service import generate_pdf_report_by_consultant
 from api.EmailNotification.report_service import generate_sas_url
 
 
@@ -167,3 +168,31 @@ def update_workflow_status(db: Session, jd_id: str, email_status: NotificationSt
     db.commit()
 
 
+
+def send_email_with_consultant_report(profile_id: str, recipient_email: str):
+    pdf_buffer = generate_pdf_report_by_consultant(profile_id)
+    pdf_bytes = pdf_buffer.read()
+
+    email_client = EmailClient.from_connection_string(os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING"))
+
+    attachment = {
+        "name": "Consultant_Report.pdf",
+        "attachmentType": "inline",  # or "attachment"
+        "contentType": "application/pdf",  # ✅ important
+        "contentInBase64": base64.b64encode(pdf_bytes).decode()
+    }
+
+    message = {
+        "senderAddress": os.getenv("EMAIL_SENDER_ADDRESS"),
+        "recipients": {
+            "to": [{"address": recipient_email}]
+        },
+        "content": {
+            "subject": "Consultant Report",
+            "plainText": "Please find the attached consultant ranking report PDF.",
+        },
+        "attachments": [attachment]
+    }
+
+    poller = email_client.begin_send(message)
+    result = poller.result()

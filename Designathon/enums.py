@@ -17,7 +17,7 @@ class WorkflowStepStatus(str, Enum):
     failed = "Failed"
 
 class UserRoleStatus(str, Enum):
-    Admin = "Admin"
+    User = "User"
     ARRequestor = "ARRequestor"
     Recruiter = "Recruiter"
 
