@@ -194,5 +194,9 @@ def send_email_with_consultant_report(profile_id: str, recipient_email: str):
         "attachments": [attachment]
     }
 
-    poller = email_client.begin_send(message)
-    result = poller.result()
+    try:
+        poller = email_client.begin_send(message)
+        result = poller.result()
+        return {"status": "sent", "message_id": result.message_id}
+    except Exception as e:
+        return {"status": "failed", "error": str(e)}

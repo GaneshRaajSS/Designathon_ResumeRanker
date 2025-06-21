@@ -169,7 +169,7 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
     blob_service = BlobServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
     blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
-    blob_client.upload_blob(buffer, overwrite=True)
+    blob_client.upload_blob(buffer, overwrite=True, standard_blob_tier="Cool")
 
     return generate_sas_url(blob_name)
 
