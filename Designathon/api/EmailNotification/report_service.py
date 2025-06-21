@@ -3,10 +3,15 @@ from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from io import BytesIO
 import os
+import matplotlib
 import matplotlib.pyplot as plt
 import tempfile
 from difflib import SequenceMatcher
 from skills import known_skills
+from JDdb import SessionLocal
+from db.Model import ConsultantProfile, Ranking, JobDescription
+
+matplotlib.use("Agg") 
 
 class ReportPDF(FPDF):
     def header(self):
@@ -167,3 +172,103 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
     blob_client.upload_blob(buffer, overwrite=True)
 
     return generate_sas_url(blob_name)
+
+
+class ConsultantReportPDF(FPDF):
+    def header(self):
+        self.set_font("Arial", "B", 16)
+        self.set_text_color(33, 37, 41)
+        self.cell(0, 10, "Consultant-to-JD Match Report", ln=True, align='C')
+        self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.set_text_color(130, 130, 130)
+        self.cell(0, 10, f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}", 0, 0, "C")
+
+    def add_consultant_info(self, consultant):
+        self.set_font("Arial", "B", 12)
+        self.set_fill_color(240, 240, 240)
+        self.cell(0, 10, "Consultant Info", ln=True, fill=True)
+        self.set_font("Arial", "", 11)
+        self.set_text_color(0)
+
+        self.cell(0, 8, f"Name: {consultant.name}", ln=True)
+        self.cell(0, 8, f"Email: {consultant.email}", ln=True)
+        self.cell(0, 8, f"Experience: {consultant.experience} years", ln=True)
+        skills_text = consultant.skills.replace("•", "-").replace("•", "-")
+        self.multi_cell(0, 8, f"Skills: {skills_text}")
+        self.ln(3)
+
+    def add_jd_rankings(self, rankings):
+        self.set_font("Arial", "B", 12)
+        self.set_fill_color(230, 230, 255)
+        self.cell(0, 10, "Top Matching Job Descriptions", ln=True, fill=True)
+        self.set_font("Arial", "", 11)
+        self.set_text_color(0)
+
+        for r in rankings:
+            self.set_font("Arial", "B", 11)
+            self.cell(0, 8, f"{r.jd.title} - Rank: {r.rank:.2f}", ln=True)
+
+            self.set_font("Arial", "", 10)
+            desc = r.jd.description.replace("•", "-").strip()
+            if len(desc) > 180:
+                desc = desc[:180] + "..."
+            self.multi_cell(0, 6, desc)
+            self.ln(1)
+
+    def add_pie_chart(self, rankings):
+        labels = [r.jd.title[:20] for r in rankings]
+        scores = [r.rank for r in rankings]
+
+        fig, ax = plt.subplots()
+        ax.pie(scores, labels=labels, autopct='%1.1f%%', startangle=140)
+        ax.set_title("JD Match Rank Distribution")
+
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmpfile.close()
+
+        plt.savefig(tmpfile.name)
+        plt.close()
+
+        self.set_font("Arial", "B", 12)
+        self.set_fill_color(245, 245, 245)
+        self.cell(0, 10, "Visual Summary", ln=True, fill=True)
+        self.image(tmpfile.name, w=160)
+        self.ln(10)
+
+        try:
+            os.unlink(tmpfile.name)
+        except Exception as e:
+            print("Warning: failed to delete temp file:", e)
+
+def generate_pdf_report_by_consultant(profile_id: str) -> BytesIO:
+    db = SessionLocal()
+    consultant = db.query(ConsultantProfile).filter_by(id=profile_id).first()
+    if not consultant:
+        raise Exception("Consultant not found")
+
+    rankings = (
+        db.query(Ranking)
+        .filter(Ranking.profile_id == profile_id)
+        .order_by(Ranking.rank.desc())
+        .limit(3)
+        .all()
+    )
+
+    for r in rankings:
+        r.jd = db.query(JobDescription).filter_by(id=r.jd_id).first()
+
+    pdf = ConsultantReportPDF()
+    pdf.add_page()
+    pdf.add_consultant_info(consultant)
+    pdf.add_jd_rankings(rankings)
+    if rankings:
+        pdf.add_pie_chart(rankings)
+
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    buffer = BytesIO(pdf_bytes)
+    buffer.seek(0)
+    return buffer

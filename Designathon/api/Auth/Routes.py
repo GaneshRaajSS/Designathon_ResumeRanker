@@ -10,7 +10,7 @@ from .okta_auth import get_current_user
 import os, httpx, secrets
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-
+from enums import UserRoleStatus
 load_dotenv()
 
 router = APIRouter()
@@ -91,7 +91,7 @@ async def callback(code: str, state: str):
 
         email = payload.get("email")
         name = payload.get("name", "Unknown")
-        role = "Recruiter" if email in RECRUITER_LIST else "ARRequestor"
+        role = "Recruiter" if email in RECRUITER_LIST else UserRoleStatus.User
 
         db = SessionLocal()
         user = db.query(User).filter_by(email=email).first()

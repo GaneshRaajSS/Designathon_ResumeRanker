@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from JDdb import Base
 import uuid
+from enums import UserRoleStatus
 
 
 def generate_uuid():
@@ -15,7 +16,7 @@ class User(Base):
     user_id = Column(String(36), primary_key=True, default=generate_uuid)
     name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
-    role = Column(String(50), default="ARRequestor", nullable=False)
+    role = Column(String(50), default= UserRoleStatus.User, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     job_descriptions = relationship("JobDescription", back_populates="user")
