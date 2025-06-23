@@ -1,10 +1,10 @@
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, Boolean, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from JDdb import Base
 import uuid
 from enums import UserRoleStatus
-
+from datetime import datetime
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -57,6 +57,9 @@ class ConsultantProfile(Base):
     embedding = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False)
+    
+    user = relationship("User")
 
     similarity_scores = relationship("SimilarityScore", back_populates="consultant_profile")
     rankings = relationship("Ranking", back_populates="consultant_profile")
@@ -86,6 +89,10 @@ class Ranking(Base):
 
     job_description = relationship("JobDescription", back_populates="rankings")
     consultant_profile = relationship("ConsultantProfile", back_populates="rankings")
+
+    __table_args__ = (
+        UniqueConstraint("jd_id", "profile_id", name="uq_ranking_once_per_jd"),
+    )
 
 
 class EmailNotification(Base):
@@ -127,3 +134,15 @@ class JDProfileHistory(Base):
     job_description = relationship("JobDescription")
     consultant_profile = relationship("ConsultantProfile")
 
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    application_id = Column(String(36), primary_key = True, default=generate_uuid)
+    jd_id = Column(String(36), ForeignKey("job_descriptions.id"), nullable=False)
+    profile_id = Column(String(36), ForeignKey("consultant_profiles.id"), nullable=False)
+    applied_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("jd_id", "profile_id", name="uq_application_once_per_jd"),
+    )

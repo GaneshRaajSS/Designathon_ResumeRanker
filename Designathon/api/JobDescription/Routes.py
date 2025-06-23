@@ -13,16 +13,8 @@ router = APIRouter()
 @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
 def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
     db = SessionLocal()
-    # try:
-    #     jd = get_job_description(jd_id)
-    #     if not jd:
-    #         raise HTTPException(status_code=404, detail="Job Description not found")
-    #     return jd
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
     try:
         # ✅ Get current user ID by their email from JWT
-
         current_user = db.query(User).filter_by(email=user["sub"]).first()
         if not current_user:
             raise HTTPException(status_code=401, detail="User not found")

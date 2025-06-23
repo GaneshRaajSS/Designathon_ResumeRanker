@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from db.Schema import EmailNotificationResponse
-from api.EmailNotification.Service import get_all_emails_db, get_emails_by_jd_db, get_db,convert_all_reports_to_cool
+from api.EmailNotification.Service import get_all_emails_db, get_emails_by_jd_db, get_db
 from api.Auth.okta_auth import get_current_user
 
 router = APIRouter()

@@ -1,4 +1,4 @@
-from db.Model import SimilarityScore, JobDescription, User, Ranking, WorkflowStatus
+from db.Model import SimilarityScore, JobDescription, User, Ranking, WorkflowStatus, JDProfileHistory
 from api.EmailNotification.report_service import generate_consultant_report
 from api.EmailNotification.Service import send_consultant_report_email
 from .similarity_service import compute_cosine_similarity
@@ -8,6 +8,7 @@ from api.ConsultantProfiles.Service import move_resume_to_jd_folder
 from JDdb import SessionLocal
 from enums import WorkflowStepStatus, NotificationStatus, HistoryStatus
 from sqlalchemy.orm import Session
+from sqlalchemy import delete
 
 async def rank_profiles(jd, profiles):
     scores = compute_cosine_similarity(jd.embedding, [p.embedding for p in profiles])
@@ -16,42 +17,51 @@ async def rank_profiles(jd, profiles):
         for profile, score in zip(profiles, scores):
             db.add(SimilarityScore(jd_id=jd.id, profile_id=profile.id, similarity_score=score))
         db.commit()
-
-        top_10 = sorted(zip(profiles, scores), key=lambda x: x[1], reverse=True)[:2]
+        top_10 = sorted(zip(profiles, scores), key=lambda x: x[1], reverse=True)[:10]
 
         reranked = []
         for profile, sim_score in top_10:
             explanation = await gpt_score_resume(jd, profile)
             reranked.append((profile, sim_score, explanation))
 
-        reranked = sorted(reranked, key=lambda x: x[1], reverse=True)[:1]
+        # Sort by score again to assign proper rank
+        reranked = sorted(reranked, key=lambda x: x[1], reverse=True)
+
+        # Clear existing rankings for this JD
+        db.query(Ranking).filter_by(jd_id=jd.id).delete()
+        db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
+        db.commit()
+
         top_ranked_profiles = []
         for rank, (profile, score, explanation) in enumerate(reranked, start=1):
-            db.add(Ranking(jd_id=jd.id, profile_id=profile.id, rank=rank,  explanation=explanation))
+            db.add(Ranking(jd_id=jd.id, profile_id=profile.id, rank=rank, explanation=explanation))
+
+            if rank == 1:
+                action_status = HistoryStatus.Shortlisted
+                await move_resume_to_jd_folder(profile.id, jd.id)
+            else:
+                action_status = HistoryStatus.Rejected
+
             create_history_entry({
                 "jd_id": jd.id,
                 "profile_id": profile.id,
-                "action": HistoryStatus.Shortlisted,
+                "action": action_status,
             })
             top_ranked_profiles.append(profile)
-        db.commit()
 
-        # for ranked in top_ranked_profiles:
-        #     await move_resume_to_jd_folder(ranked.id, jd.id)
-        for ranked in top_ranked_profiles:
-            await move_resume_to_jd_folder(ranked.id, jd.id)
+        db.commit()
 
         return [
             {
                 "consultant_id": profile.id,
                 "name": profile.name,
-                "email" : profile.email,
+                "email": profile.email,
                 "score": score,
                 "explanation": explanation
             }
-            for profile, score,explanation in reranked
+            for profile, score, explanation in reranked[:1]  # Currently top 1 only
         ]
-    
+
     finally:
         db.close()
 
@@ -78,6 +88,8 @@ async def finalize_and_notify(jd_id: str, ranked_consultants: list[dict]):
 
     except Exception as e:
         print(f"❌ Error during finalize_and_notify: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
@@ -85,15 +97,15 @@ def init_or_update_workflow_status(db: Session, jd_id: str):
     existing = db.query(WorkflowStatus).filter_by(jd_id=jd_id).first()
 
     if existing:
-        existing.comparison_status = WorkflowStepStatus.completed
-        existing.ranking_status = WorkflowStepStatus.completed
-        existing.email_status = NotificationStatus
+        existing.comparison_status = WorkflowStepStatus.completed.value
+        existing.ranking_status = WorkflowStepStatus.completed.value
+        existing.email_status = NotificationStatus.pending.value
     else:
         new_status = WorkflowStatus(
             jd_id=jd_id,
-            comparison_status=WorkflowStepStatus.completed,
-            ranking_status=WorkflowStepStatus.pending,
-            email_status=NotificationStatus.pending,
+            comparison_status=WorkflowStepStatus.completed.value,
+            ranking_status=WorkflowStepStatus.pending.value,
+            email_status=NotificationStatus.pending.value,
         )
         db.add(new_status)
 

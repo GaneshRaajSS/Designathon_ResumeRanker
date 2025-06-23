@@ -52,6 +52,17 @@ class RankingResponse(RankingCreate):
         orm_mode = True
 
 
+class ApplicationCreate(BaseModel):
+    jd_id: str
+    # profile_id: str
+
+class ApplicationResponse(ApplicationCreate):
+    application_id: str
+    applied_at: datetime
+
+    class Config:
+        orm_mode = True
+
 
 # schemas/email_notification.py
 class EmailNotificationCreate(BaseModel):
