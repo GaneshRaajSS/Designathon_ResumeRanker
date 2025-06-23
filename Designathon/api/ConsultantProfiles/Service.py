@@ -10,6 +10,8 @@ from agents.embedding_service import get_embedding
 from azure.storage.blob import BlobServiceClient
 import os
 from azure.storage.blob import StandardBlobTier
+from datetime import datetime, timezone, timedelta
+from azure.core.exceptions import ResourceNotFoundError
 
 def compute_resume_hash(sections: dict, resume_text: str) -> str:
     normalized_text = re.sub(r'\s+', ' ', resume_text.lower().strip()) if resume_text else ""
@@ -109,6 +111,13 @@ async def move_resume_to_jd_folder(consultant_id: str, jd_id: str):
 
     source_blob_client = blob_service_client.get_blob_client(container=container_name, blob=source_blob)
     dest_blob_client = blob_service_client.get_blob_client(container=container_name, blob=dest_blob)
+    try:
+        # ✅ Check if destination blob already exists
+        dest_blob_client.get_blob_properties()
+        print(f"📁 Resume already exists in JD folder: {dest_blob}")
+        return 
+    except ResourceNotFoundError:
+        pass
 
     # Copy source to destination
     copy_url = source_blob_client.url

@@ -9,6 +9,8 @@ import time
 import os
 import threading
 from opencensus.ext.azure.log_exporter import AzureLogHandler
+# from api.ConsultantProfiles.blob_tier import scheduler
+# from api.Application.AppBackground import app_scheduler
 
 # ✅ Load environment variables
 load_dotenv()
@@ -62,6 +64,12 @@ def on_startup():
     from api.JobDescription.Service import mark_expired_jds_as_completed
     mark_expired_jds_as_completed()
     print("✅ Expired JDs marked as completed.")
+    from background.job import app_scheduler
+    if not app_scheduler.running:
+        app_scheduler.start()
+    print("✅ Schedulers are being called.")
+
+
 
 # ✅ Include routers
 from api.JobDescription.Routes import router as jd_router
@@ -70,18 +78,21 @@ from api.Auth.Routes import router as auth_router
 from api.SimilarityScore.Routes import router as ss_router
 from api.Monitoring.Routes import router as m_router
 from api.Ranking.Routes import router as ranking_router
+from api.Application.Routes import router as app_router
 from api.EmailNotification.Routes import router as en_router
 from api.WorkflowStatus.Routes import router as wfs_router
 from api.JDProfileHistory.Routes import router as jdh_router
-from agents.comparison_routes import router as cr_router
+# from agents.comparison_routes import router as cr_router
+
 
 app.include_router(jd_router, prefix="/api")
 app.include_router(cp_router, prefix="/api")
 app.include_router(ss_router, prefix="/api")
+app.include_router(app_router, prefix="/api")
 app.include_router(m_router, prefix="/api")
 app.include_router(auth_router)
 app.include_router(ranking_router, prefix="/display")
 app.include_router(en_router, prefix="/display")
 app.include_router(wfs_router, prefix="/display")
 app.include_router(jdh_router, prefix="/display")
-app.include_router(cr_router, prefix="/agent")
+# app.include_router(cr_router, prefix="/agent")

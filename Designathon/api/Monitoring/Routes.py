@@ -43,9 +43,9 @@ def query_logs(query: str):
 def view_agentic_framework():
     query = """
     AppDependencies
-    | where Target has "openai" or Target has "embedding" or Target has "agent"
-    | summarize Count=count() by Target
-    | top 10 by Count
+    | where Target contains "openai" or Target contains "azure" or Name contains "embedding" or Name contains "GPT"
+    | summarize Count = count() by Target, Name
+    | order by Count desc
     """
     return query_logs(query)
 
@@ -83,5 +83,5 @@ def test_error_log():
     try:
         raise ValueError("💥 Test error for Application Insights")
     except Exception:
-        logger.exception("Test error occurred!")  # Will log to AppInsights
+        logger.exception("Test error occurred!")
     return {"message": "Test error triggered"}
