@@ -28,10 +28,15 @@ def compute_resume_hash(sections: dict, resume_text: str) -> str:
 def safe_value(parsed_val, fallback_val, min_len=3):
     return parsed_val if parsed_val and len(parsed_val.strip()) >= min_len else fallback_val or "Not specified"
 
+
 async def create_consultant(data, skip_if_duplicate=True):
     db = SessionLocal()
     try:
         resume_text = data.get("resume_text", "")
+        user_id = data.get("user_id")  # ✅ Required field now
+        if not user_id:
+            raise Exception("user_id is required for Consultant creation.")
+
         parsed = await extract_sections(resume_text)
         resume_hash = compute_resume_hash(parsed, resume_text)
 
@@ -54,6 +59,7 @@ async def create_consultant(data, skip_if_duplicate=True):
             existing.resume_text = resume_text
             existing.content_hash = resume_hash
             existing.embedding = await get_embedding(text_for_embedding)
+            existing.user_id = user_id  # ✅ Update user_id if needed
 
             db.commit()
             db.refresh(existing)
@@ -67,10 +73,11 @@ async def create_consultant(data, skip_if_duplicate=True):
             name=parsed.get("name") or data.get("name"),
             email=parsed.get("email") or data.get("email"),
             skills=skills,
-            experience= experience,
+            experience=experience,
             resume_text=resume_text,
             content_hash=resume_hash,
             embedding=embedding,
+            user_id=user_id  # ✅ Set user_id for new consultant
         )
         db.add(consultant)
         db.commit()
@@ -83,6 +90,62 @@ async def create_consultant(data, skip_if_duplicate=True):
         raise Exception(f"Database error while creating/updating Consultant: {str(e)}")
     finally:
         db.close()
+
+# async def create_consultant(data, skip_if_duplicate=True):
+#     db = SessionLocal()
+#     try:
+#         resume_text = data.get("resume_text", "")
+#         parsed = await extract_sections(resume_text)
+#         resume_hash = compute_resume_hash(parsed, resume_text)
+
+#         # Check for existing by email
+#         existing = db.query(ConsultantProfile).filter_by(email=parsed.get("email")).first()
+
+#         # Text for embedding
+#         skills = safe_value(parsed.get("skills"), data.get("skills"))
+#         experience = safe_value(parsed.get("experience"), data.get("experience"))
+#         text_for_embedding = f"{skills}\n{experience}"
+
+#         if existing:
+#             if skip_if_duplicate and existing.content_hash == resume_hash:
+#                 return existing, "duplicate"
+
+#             # Resume changed → update + re-embed
+#             existing.name = parsed.get("name") or data.get("name")
+#             existing.skills = skills
+#             existing.experience = experience
+#             existing.resume_text = resume_text
+#             existing.content_hash = resume_hash
+#             existing.embedding = await get_embedding(text_for_embedding)
+
+#             db.commit()
+#             db.refresh(existing)
+#             return existing, "updated"
+
+#         # New consultant
+#         consultant_id = str(uuid.uuid4())
+#         embedding = await get_embedding(text_for_embedding)
+#         consultant = ConsultantProfile(
+#             id=consultant_id,
+#             name=parsed.get("name") or data.get("name"),
+#             email=parsed.get("email") or data.get("email"),
+#             skills=skills,
+#             experience= experience,
+#             resume_text=resume_text,
+#             content_hash=resume_hash,
+#             embedding=embedding,
+#         )
+#         db.add(consultant)
+#         db.commit()
+#         db.refresh(consultant)
+#         return consultant, "created"
+
+#     except SQLAlchemyError as e:
+#         db.rollback()
+#         traceback.print_exc()
+#         raise Exception(f"Database error while creating/updating Consultant: {str(e)}")
+#     finally:
+#         db.close()
 
 def get_consultant(consultant_id):
     db = SessionLocal()

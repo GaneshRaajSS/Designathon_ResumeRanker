@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from enums import UserRoleStatus
 load_dotenv()
 
+
 router = APIRouter()
 
 CLIENT_ID = os.getenv("OKTA_CLIENT_ID")
@@ -23,7 +24,7 @@ AUTH_ENDPOINT = f"{ISSUER}/v1/authorize"
 TOKEN_ENDPOINT = f"{ISSUER}/v1/token"
 JWKS_URI = f"{ISSUER}/v1/keys"
 JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
-RECRUITER_LIST = [e.strip() for e in os.getenv("RECRUITER_EMAILS", "").split(",") if e.strip()]
+# RECRUITER_LIST = [e.strip() for e in os.getenv("RECRUITER_EMAILS", "").split(",") if e.strip()]
 
 STATE_STORE = {}
 
@@ -91,7 +92,15 @@ async def callback(code: str, state: str):
 
         email = payload.get("email")
         name = payload.get("name", "Unknown")
-        role = "Recruiter" if email in RECRUITER_LIST else UserRoleStatus.User
+
+        # 🔑 Pull role from token claim (mapped from Okta's userRole)
+        role_str = payload.get("userRole", "User")
+        role = UserRoleStatus(role_str)
+        print("role",role)
+        try:
+            role = UserRoleStatus(role_str)
+        except ValueError:
+            role = UserRoleStatus.User
 
         db = SessionLocal()
         user = db.query(User).filter_by(email=email).first()
@@ -100,14 +109,29 @@ async def callback(code: str, state: str):
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+            # Optional: sync role from Okta
+            if user.role != role:
+                user.role = role
+                db.commit()
 
         token_payload = {
             "sub": email,
-            "role": user.role,
+            "role": str(user.role),
             "exp": datetime.utcnow() + timedelta(hours=1),
         }
+        print("Token payload:", token_payload)
         access_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
-        response = RedirectResponse("/docs")
+        
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+        redirect_path = {
+            UserRoleStatus.ARRequestor: "/arrequestor",
+            UserRoleStatus.Recruiter: "/recruiter",
+            UserRoleStatus.User: "/dashboard"
+        }.get(user.role, "/dashboard")
+
+        response = RedirectResponse(f"{frontend_url}{redirect_path}")
         response.set_cookie(
             key="access_token",
             value=access_token,

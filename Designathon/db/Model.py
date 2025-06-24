@@ -20,7 +20,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     job_descriptions = relationship("JobDescription", back_populates="user")
-
+    consultant_profiles = relationship("ConsultantProfile", back_populates="user")
 
 class JobDescription(Base):
     __tablename__ = "job_descriptions"
@@ -41,6 +41,7 @@ class JobDescription(Base):
     rankings = relationship("Ranking", back_populates="job_description")
     emails = relationship("EmailNotification", back_populates="job_description")
     workflow_status = relationship("WorkflowStatus", uselist=False, back_populates="job_description")
+    applications = relationship("Application", back_populates="job_description")
 
 
 class ConsultantProfile(Base):
@@ -63,6 +64,8 @@ class ConsultantProfile(Base):
 
     similarity_scores = relationship("SimilarityScore", back_populates="consultant_profile")
     rankings = relationship("Ranking", back_populates="consultant_profile")
+    
+    applications = relationship("Application", back_populates="consultant_profile")
 
 class SimilarityScore(Base):
     __tablename__ = "similarity_scores"
@@ -142,7 +145,8 @@ class Application(Base):
     jd_id = Column(String(36), ForeignKey("job_descriptions.id"), nullable=False)
     profile_id = Column(String(36), ForeignKey("consultant_profiles.id"), nullable=False)
     applied_at = Column(DateTime, default=datetime.utcnow)
-
+    job_description = relationship("JobDescription", back_populates="applications")
+    consultant_profile = relationship("ConsultantProfile", back_populates="applications")   
     __table_args__ = (
         UniqueConstraint("jd_id", "profile_id", name="uq_application_once_per_jd"),
     )

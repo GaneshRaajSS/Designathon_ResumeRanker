@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.middleware.cors import CORSMiddleware  # ✅ Add this line
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from JDdb import Base, engine
@@ -9,8 +10,6 @@ import time
 import os
 import threading
 from opencensus.ext.azure.log_exporter import AzureLogHandler
-# from api.ConsultantProfiles.blob_tier import scheduler
-# from api.Application.AppBackground import app_scheduler
 
 # ✅ Load environment variables
 load_dotenv()
@@ -42,6 +41,18 @@ Base.metadata.create_all(bind=engine)
 
 # ✅ Initialize FastAPI app
 app = FastAPI(title="AI Recruitment Matching System")
+origins = [
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(OpenTelemetryMiddleware)
 
 # ✅ Middleware for request timing logs
