@@ -4,10 +4,11 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import axios from 'axios';
 
 import LandingPage from './Components/LandingPage/LandingPage';
-import LoginPage from './Components/LoginPage/LoginPage';
+// import LoginPage from './Components/LoginPage/LoginPage';
+import LoginPage from './Components/LoignPage/LoginPage';
 import Dashboard from './Components/User/Dashboard/Dashboard';
 import ARRequestor from './Components/ARRequestor/Dashboard/Dashboard';
-import RecruiterPage from './Components/Recruiter/Dashboard/Dashboard';
+import RecruiterDashboard from './Components/Recruiter/Dashboard/Dashboard';
 import PrivateRoute from './utils/PrivateRoute';
 
 function App() {
@@ -55,7 +56,7 @@ function App() {
           path="/recruiter"
           element={
             <PrivateRoute user={user} allowedRoles={['Recruiter']}>
-              <RecruiterPage user={user} />
+              <RecruiterDashboard user={user} />
             </PrivateRoute>
           }
         />
