@@ -1,37 +1,50 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from db.Schema import JobDescriptionResponse, JobDescriptionCreate
-from .Service import create_job_description, get_job_description
+from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
 from JDdb import SessionLocal
 from db.Model import User
+from typing import List
 
 router = APIRouter()
 
 
-@router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
-def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
+# @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
+# def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
+#     db = SessionLocal()
+#     try:
+#         # ✅ Get current user ID by their email from JWT
+#         current_user = db.query(User).filter_by(email=user["sub"]).first()
+#         if not current_user:
+#             raise HTTPException(status_code=401, detail="User not found")
+
+#         jd = get_job_description(jd_id)
+#         if not jd:
+#             raise HTTPException(status_code=404, detail="Job Description not found")
+
+#         # ✅ Check if this JD was created by the logged-in user
+#         if str(jd.user_id) != str(current_user.user_id):
+#             return {
+#                 "error": "Access denied",
+#                 "jd_user_id": jd.user_id,
+#                 "current_user_user_id": current_user.user_id,
+#                 "jwt_email": user["sub"]
+#             }
+#         return jd
+
+#     finally:
+#         db.close()
+@router.get("/job-descriptions/me", response_model=List[JobDescriptionResponse])
+def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
     db = SessionLocal()
     try:
-        # ✅ Get current user ID by their email from JWT
         current_user = db.query(User).filter_by(email=user["sub"]).first()
         if not current_user:
             raise HTTPException(status_code=401, detail="User not found")
 
-        jd = get_job_description(jd_id)
-        if not jd:
-            raise HTTPException(status_code=404, detail="Job Description not found")
-
-        # ✅ Check if this JD was created by the logged-in user
-        if str(jd.user_id) != str(current_user.user_id):
-            return {
-                "error": "Access denied",
-                "jd_user_id": jd.user_id,
-                "current_user_user_id": current_user.user_id,
-                "jwt_email": user["sub"]
-            }
-        return jd
+        return get_job_descriptions_by_user(current_user.user_id)
 
     finally:
         db.close()
