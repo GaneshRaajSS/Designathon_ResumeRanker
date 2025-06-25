@@ -78,17 +78,6 @@ async def create_job_description(data):
         db.close()
 
 
-# def get_job_description(jd_id):
-#     db = SessionLocal()
-#     try:
-#         jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
-#         return jd
-#     except SQLAlchemyError as e:
-#         raise Exception(f"Database error while fetching JD: {str(e)}")
-#     finally:
-#         db.close()
-
-
 def get_job_descriptions_by_user(user_id: str):
     from JDdb import SessionLocal  # local import to avoid circular dependency
     db = SessionLocal()

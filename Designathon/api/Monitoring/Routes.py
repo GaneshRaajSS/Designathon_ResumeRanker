@@ -70,12 +70,16 @@ def get_latencies():
 @router.get("/monitoring/errors")
 def get_error_logs():
     query = """
-    AppTraces
+    union AppTraces, AppExceptions
+    | where TimeGenerated > ago(24h)
     | where SeverityLevel >= 3
     | order by TimeGenerated desc
     | project TimeGenerated, Message, SeverityLevel
+    | take 100
     """
-    return query_logs(query)
+    results = query_logs(query)
+    print(f"📊 Query returned {len(results)} rows")
+    return results
 
 # ✅ 4. Trigger test error
 @router.get("/monitoring/test-error")

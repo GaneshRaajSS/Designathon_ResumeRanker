@@ -1,41 +1,40 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from db.Schema import JobDescriptionResponse, JobDescriptionCreate
 from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
 from JDdb import SessionLocal
-from db.Model import User
+from sqlalchemy.orm import Session
+from db.Model import JDProfileHistory, JobDescription, ConsultantProfile, User, Application
 from typing import List
 
 router = APIRouter()
 
+#To See all JDs
+@router.get("/job-descriptions", response_model=List[JobDescriptionResponse])
+def get_all_job_descriptions(
+    skip: int = 0,
+    limit: int = 50,
+):
+    db: Session = SessionLocal()
+    try:
+        jds = (
+            db.query(JobDescription)
+            .order_by(JobDescription.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-# @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
-# def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
-#     db = SessionLocal()
-#     try:
-#         # ✅ Get current user ID by their email from JWT
-#         current_user = db.query(User).filter_by(email=user["sub"]).first()
-#         if not current_user:
-#             raise HTTPException(status_code=401, detail="User not found")
+        if not jds:
+            raise HTTPException(status_code=404, detail="No Job Descriptions found")
 
-#         jd = get_job_description(jd_id)
-#         if not jd:
-#             raise HTTPException(status_code=404, detail="Job Description not found")
+        return jds
+    finally:
+        db.close()
 
-#         # ✅ Check if this JD was created by the logged-in user
-#         if str(jd.user_id) != str(current_user.user_id):
-#             return {
-#                 "error": "Access denied",
-#                 "jd_user_id": jd.user_id,
-#                 "current_user_user_id": current_user.user_id,
-#                 "jwt_email": user["sub"]
-#             }
-#         return jd
-
-#     finally:
-#         db.close()
+#AR Requestor JD 
 @router.get("/job-descriptions/me", response_model=List[JobDescriptionResponse])
 def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
     db = SessionLocal()
@@ -49,6 +48,51 @@ def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
     finally:
         db.close()
 
+@router.get("/users/me/applied-jobs")
+async def get_applied_jobs_for_logged_user(request: Request, user=Depends(get_current_user)):
+    db: Session = SessionLocal()
+    try:
+        # Step 1: Get current user by email from token
+        user_email = user.get("sub")
+        current_user = db.query(User).filter_by(email=user_email).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Step 2: Get consultant profile(s) created by the user
+        consultant_profiles = db.query(ConsultantProfile).filter_by(user_id=current_user.user_id).all()
+        if not consultant_profiles:
+            raise HTTPException(status_code=404, detail="No consultant profiles found for user")
+
+        consultant_ids = [cp.id for cp in consultant_profiles]
+
+        # Step 3: Get applications for those consultant profiles
+        applications = db.query(Application).filter(Application.profile_id.in_(consultant_ids)).all()
+        if not applications:
+            return {"applied_jobs": []}
+
+        jd_ids = [app.jd_id for app in applications]
+
+        # Step 4: Fetch Job Descriptions
+        jds = db.query(JobDescription).filter(JobDescription.id.in_(jd_ids)).all()
+
+        # Step 5: Format response
+        return {
+            "user_id": current_user.user_id,
+            "applied_jobs": [
+                {
+                    "id": jd.id,
+                    "title": jd.title,
+                    "description": jd.description,
+                    "skills": jd.skills,
+                    "experience": jd.experience,
+                    "status": jd.status,
+                    "end_date": jd.end_date,
+                } for jd in jds
+            ]
+        }
+
+    finally:
+        db.close()
 
 def extract_text_from_pdf(file: UploadFile) -> str:
     doc = fitz.open(stream=file.file.read(), filetype="pdf")

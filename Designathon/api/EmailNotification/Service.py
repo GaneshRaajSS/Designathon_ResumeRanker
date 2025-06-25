@@ -1,9 +1,9 @@
-from db.Model import EmailNotification, User, WorkflowStatus, JobDescription
+from db.Model import EmailNotification, User, WorkflowStatus, JobDescription, Ranking,ConsultantProfile
 from JDdb import SessionLocal
 from sqlalchemy.orm import Session
 from azure.communication.email import EmailClient
-import os, base64, requests
-from datetime import datetime
+import os, base64, requests, asyncio
+from datetime import datetime, date
 from enums import WorkflowStepStatus, NotificationStatus
 import time
 from api.EmailNotification.report_service import generate_pdf_report_by_consultant
@@ -168,7 +168,6 @@ def update_workflow_status(db: Session, jd_id: str, email_status: NotificationSt
     db.commit()
 
 
-
 def send_email_with_consultant_report(profile_id: str, recipient_email: str):
     pdf_buffer = generate_pdf_report_by_consultant(profile_id)
     pdf_bytes = pdf_buffer.read()
@@ -200,3 +199,54 @@ def send_email_with_consultant_report(profile_id: str, recipient_email: str):
         return {"status": "sent", "message_id": result.message_id}
     except Exception as e:
         return {"status": "failed", "error": str(e)}
+
+def send_expired_jd_emails():
+    db = SessionLocal()
+    today = date.today()
+
+    # ✅ Fetch JDs whose end date is today and not completed
+    jds = db.query(JobDescription).filter(
+        JobDescription.end_date == today,
+        JobDescription.status != "completed"
+    ).all()
+
+    for jd in jds:
+        # ✅ Skip if email already sent
+        existing_email = db.query(EmailNotification).filter_by(jd_id=jd.id, status="Sent").first()
+        if existing_email:
+            continue
+
+        user = db.query(User).filter(User.id == jd.user_id).first()
+        if not user:
+            continue
+
+        top_rankings = db.query(Ranking).filter(Ranking.jd_id == jd.id).order_by(Ranking.score.desc()).all()
+
+        consultants = []
+        for r in top_rankings:
+            profile = db.query(ConsultantProfile).filter_by(id=r.consultant_id).first()
+            if profile:
+                consultants.append({
+                    "consultant_id": profile.id,
+                    "name": profile.name,
+                    "email": profile.email,
+                    "score": r.score
+                })
+
+        # ✅ Proceed only if there are consultants ranked
+        if consultants:
+            pdf_url = generate_sas_url(f"reports/{jd.id}.pdf")
+            try:
+                send_consultant_report_email(user.email, jd.id, pdf_url, db, consultants)
+                jd.status = "completed"
+                db.commit()
+            except Exception as e:
+                print(f"❌ Failed to send email for JD {jd.id}: {e}")
+                db.rollback()
+
+    db.close()
+
+async def jd_email_scheduler():
+    while True:
+        send_expired_jd_emails()
+        await asyncio.sleep(86400) 
