@@ -161,7 +161,15 @@ async def protected_redoc(request: Request):
 
 @router.get("/me")
 async def get_me(user=Depends(get_current_user)):
+    db = SessionLocal()
+    db_user = db.query(User).filter_by(email=user["sub"]).first()
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     return {
-        "email": user["sub"],
-        "role": user["role"]
+        "email": db_user.email,
+        "role": db_user.role,
+        "name": db_user.name
     }
+
