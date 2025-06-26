@@ -8,12 +8,12 @@ const AppliedJobs = () => {
 
   useEffect(() => {
     axios
-      .get(`${import.meta.env.VITE_API_BASE_URL}/api/job-descriptions/me`, {
+      .get(`${import.meta.env.VITE_API_BASE_URL}/api/users/me/applied-jobs`, {
         withCredentials: true,
       })
       .then((res) => {
-                console.log('User role:', res.data.role);
-        setJobs(res.data);
+        // console.log('User role:', res.data.role);
+        setJobs(res.data.applied_jobs);
         setLoading(false);
       })
       .catch((err) => {
