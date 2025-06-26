@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import Profile from './Profile';
 
 const ApplyJobs = () => {
   const [jobs, setJobs] = useState([]);
   const [expandedJobId, setExpandedJobId] = useState(null);
   const [appliedJobs, setAppliedJobs] = useState([]);
+  const navigate = useNavigate();
 
   // Fetch jobs on component mount
   useEffect(() => {
@@ -26,14 +29,29 @@ const ApplyJobs = () => {
   // Handle job application
   const handleApply = (jobId) => {
     axios
-      .post(`${import.meta.env.VITE_API_BASE_URL}/apply`, { jd_id: jobId }, { withCredentials: true })
+      .post(`${import.meta.env.VITE_API_BASE_URL}/api/apply`, { jd_id: jobId }, { withCredentials: true })
       .then((res) => {
-        alert(res.data.message);
+        alert(res.data.message || 'Application submitted successfully.');
         setAppliedJobs((prev) => [...prev, jobId]);
       })
       .catch((err) => {
-        const message = err.response?.data?.detail || 'Failed to apply.';
-        alert(message);
+        const status = err.response?.status;
+        const detail = err.response?.data?.detail;
+
+        if (status === 404 && detail === 'Consultant profile not found') {
+          const goToProfile = confirm(
+            "You need to upload your resume before applying.\nDo you want to go to your profile page now?"
+          );
+          if (goToProfile) {
+            navigate('/profile');
+          }
+        } else if (status === 400 && detail === 'Already applied to this JD') {
+          alert('You have already applied to this job.');
+        } else if (status === 401) {
+          alert('Unauthorized. Please log in again.');
+        } else {
+          alert(detail || 'Failed to apply. Please try again.');
+        }
       });
   };
 

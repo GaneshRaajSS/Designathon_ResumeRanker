@@ -1,10 +1,16 @@
-import re, os
+import re
+import os
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
+
+# ✅ Ensure NLTK looks in the right directory for downloaded data
+nltk.data.path.append(os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'nltk_data'))
+nltk.download('punkt')  # Optional: safe to keep in dev environments
 
 client = AzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -15,9 +21,6 @@ client = AzureOpenAI(
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o-mini")
 
-
-# Download required resources once
-nltk.download('punkt')
 
 def extract_name(text: str) -> str | None:
     lines = text.strip().splitlines()
@@ -37,7 +40,7 @@ def extract_phone(text: str) -> str | None:
     match = re.search(r'\+?\d[\d\s\-\(\)]{8,}\d', text)
     return match.group(0) if match else None
 
-#
+
 def extract_by_section(text: str, headers, stop_words=None):
     lines = text.splitlines()
     section_lines = []
@@ -69,7 +72,7 @@ def extract_by_section(text: str, headers, stop_words=None):
 
     full_text = "\n".join(section_lines).strip()
     return full_text if section_lines else None
-#
+
 
 async def gpt_extract_yoe(text: str) -> str | None:
     messages = [
@@ -105,25 +108,22 @@ async def gpt_extract_yoe(text: str) -> str | None:
 
     result = res.choices[0].message.content.strip()
 
-    # Validate result format like: 0.8 or 3 or 2.5
     if re.match(r'^(\d+(\.\d+)?)\s*years?$', result):
         return result
     return None
 
+
 def extract_yoe(text: str) -> str | None:
     text = text.lower()
 
-    # If the surrounding context mentions internship, ignore it
     if "intern" in text or "internship" in text:
         return None
 
-    # Match patterns like "2.5 years", "2+ years", "3 yrs", etc.
     year_match = re.search(r'(\d+(\.\d+)?)(\+)?\s*(years?|yrs?)', text)
     if year_match:
         years = round(float(year_match.group(1)), 1)
         return f"{years} years"
 
-    # Match patterns like "18 months", "12 mos", etc.
     month_match = re.search(r'(\d+)\s*(months?|mos?)', text)
     if month_match:
         months = int(month_match.group(1))
@@ -133,7 +133,6 @@ def extract_yoe(text: str) -> str | None:
     return None
 
 
-#
 async def extract_sections(text: str) -> dict:
     experience_text = extract_by_section(
         text,
@@ -145,10 +144,7 @@ async def extract_sections(text: str) -> dict:
     if not yoe:
         yoe = await gpt_extract_yoe(text)
 
-    # Sentence tokenization
     sentences = sent_tokenize(text)
-    
-    # Word tokenization (you can also store or use these as needed)
     tokenized_sentences = [word_tokenize(sent) for sent in sentences]
 
     return {
@@ -174,5 +170,3 @@ async def extract_sections(text: str) -> dict:
         "sentences": sentences,
         "tokens": tokenized_sentences 
     }
-
-#

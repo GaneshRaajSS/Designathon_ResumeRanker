@@ -5,13 +5,14 @@ from docx import Document
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
 from JDdb import SessionLocal
-from db.Model import User
+from db.Model import User,JobDescription
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
 
 @router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
-def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
+def read_jd( jd_id: str, user=Depends(require_role(["User"]))):
     db = SessionLocal()
     try:
         # ✅ Get current user ID by their email from JWT
@@ -36,6 +37,35 @@ def read_jd( jd_id: str, user=Depends(require_role(["ARRequestor"]))):
     finally:
         db.close()
 
+@router.get("/job-descriptions/me", response_model=list[JobDescriptionResponse])
+def get_my_job_descriptions(user=Depends(require_role(["ARRequestor", "User"]))):
+    db = SessionLocal()
+    try:
+        print("🔐 User from token:", user)  # Debug: Token details
+
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+
+        if not current_user:
+            print("❌ No user found for email:", user["sub"])  # Debug: User not found
+            raise HTTPException(status_code=401, detail="User not found")
+
+        print("✅ Current user ID:", current_user.user_id)  # Debug: User ID
+
+        job_descriptions = (
+            db.query(JobDescription)
+            .options(joinedload(JobDescription.user))
+            .filter(JobDescription.user_id == current_user.user_id)
+            .all()
+        )
+
+        print(f"📄 Job descriptions found: {len(job_descriptions)}")  # Debug: Count of JDs
+
+        return job_descriptions
+
+    finally:
+        db.close()
+
+ 
 
 def extract_text_from_pdf(file: UploadFile) -> str:
     doc = fitz.open(stream=file.file.read(), filetype="pdf")

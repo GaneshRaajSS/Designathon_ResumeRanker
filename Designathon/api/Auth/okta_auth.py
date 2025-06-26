@@ -16,6 +16,8 @@ async def get_current_user(request: Request):
 
 def require_role(roles: list[str]):
     def checker(user=Depends(get_current_user)):
+        print("User from token:", user)              # Debug
+        print("Allowed roles:", roles)               # Debug
         if user["role"] not in roles:
             raise HTTPException(status_code=403, detail="Access denied")
         return user

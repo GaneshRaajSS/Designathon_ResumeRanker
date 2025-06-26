@@ -9,7 +9,7 @@ import Dashboard from './Components/User/Dashboard/Dashboard';
 import ARRequestor from './Components/ARRequestor/Dashboard/Dashboard';
 import RecruiterPage from './Components/Recruiter/Dashboard/Dashboard';
 import PrivateRoute from './utils/PrivateRoute';
-
+import Profile from './Components/User/Profile';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true); // To avoid flicker
@@ -43,6 +43,14 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route
+  path="/profile"
+  element={
+    <PrivateRoute user={user} allowedRoles={['User']}>
+      <Profile />
+    </PrivateRoute>
+  }
+/>
         <Route
           path="/arrequestor"
           element={
