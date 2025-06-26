@@ -79,3 +79,28 @@ def get_all_jobs(user=Depends(get_current_user)):
         ]
     finally:
         db.close()
+        
+@router.get("/job-descriptions/{jd_id}/applications")
+def get_jd_applications(jd_id: str):
+    db: Session = SessionLocal()
+
+    # Join Ranking and ConsultantProfile to get rank along with consultant details
+    results = (
+        db.query(ConsultantProfile, Ranking.rank)
+        .join(Ranking, Ranking.profile_id == ConsultantProfile.id)
+        .filter(Ranking.jd_id == jd_id)
+        .order_by(Ranking.rank.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": profile.id,
+            "name": profile.name,
+            "email": profile.email,
+            "skills": profile.skills,
+            "experience": profile.experience,
+            "rank": rank
+        }
+        for profile, rank in results
+    ]

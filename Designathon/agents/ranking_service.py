@@ -59,7 +59,7 @@ async def rank_profiles(jd, profiles):
                 "score": score,
                 "explanation": explanation
             }
-            for profile, score, explanation in reranked[:1]  # Currently top 1 only
+            for profile, score, explanation in reranked[:3]  # Currently top 1 only
         ]
 
     finally:
@@ -110,3 +110,66 @@ def init_or_update_workflow_status(db: Session, jd_id: str):
         db.add(new_status)
 
     db.commit()
+
+
+
+# Stores only top 5 profiles in the SimilarityScore table. Stores only top 3 profiles in the Ranking table.------------------
+
+# async def rank_profiles(jd, profiles):
+#     scores = compute_cosine_similarity(jd.embedding, [p.embedding for p in profiles])
+#     db = SessionLocal()
+#     try:
+#         # 🔢 Store only top 5 similarity scores
+#         top_5_sim_scores = sorted(zip(profiles, scores), key=lambda x: x[1], reverse=True)[:5]
+#         for profile, score in top_5_sim_scores:
+#             db.add(SimilarityScore(jd_id=jd.id, profile_id=profile.id, similarity_score=score))
+#         db.commit()
+
+#         # 🎯 Re-rank only top 5 with GPT
+#         reranked = []
+#         for profile, sim_score in top_5_sim_scores:
+#             explanation = await gpt_score_resume(jd, profile)
+#             reranked.append((profile, sim_score, explanation))
+
+#         # 🧠 Sort by GPT reranked score
+#         reranked = sorted(reranked, key=lambda x: x[1], reverse=True)
+
+#         # 🧹 Clear existing rankings and history
+#         db.query(Ranking).filter_by(jd_id=jd.id).delete()
+#         db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
+#         db.commit()
+
+#         # 🥇 Save only top 3 into Ranking
+#         top_ranked_profiles = []
+#         for rank, (profile, score, explanation) in enumerate(reranked[:3], start=1):
+#             db.add(Ranking(jd_id=jd.id, profile_id=profile.id, rank=rank, explanation=explanation))
+
+#             if rank == 1:
+#                 action_status = HistoryStatus.Shortlisted
+#                 await move_resume_to_jd_folder(profile.id, jd.id)
+#             else:
+#                 action_status = HistoryStatus.Rejected
+
+#             create_history_entry({
+#                 "jd_id": jd.id,
+#                 "profile_id": profile.id,
+#                 "action": action_status,
+#             })
+#             top_ranked_profiles.append(profile)
+
+#         db.commit()
+
+#         # 🔙 Return top 3 for report/email
+#         return [
+#             {
+#                 "consultant_id": profile.id,
+#                 "name": profile.name,
+#                 "email": profile.email,
+#                 "score": score,
+#                 "explanation": explanation
+#             }
+#             for profile, score, explanation in reranked[:3]
+#         ]
+
+#     finally:
+#         db.close()

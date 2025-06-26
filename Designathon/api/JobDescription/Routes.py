@@ -2,12 +2,18 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from db.Schema import JobDescriptionResponse, JobDescriptionCreate
 from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
+from api.EmailNotification.report_service import generate_consultant_report
+from api.Auth.okta_auth import require_role
+from api.EmailNotification.Service import send_consultant_report_email
+from datetime import datetime
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
 from JDdb import SessionLocal
 from sqlalchemy.orm import Session
-from db.Model import JDProfileHistory, JobDescription, ConsultantProfile, User, Application
+from db.Model import EmailNotification, Ranking, JobDescription, ConsultantProfile, User, Application, SimilarityScore, WorkflowStatus
 from typing import List
+from enums import JobStatus, NotificationStatus, WorkflowStepStatus
+from agents.ranking_service import init_or_update_workflow_status
 
 router = APIRouter()
 
@@ -200,3 +206,66 @@ async def submit_jd(jd_data: JobDescriptionCreate, user=Depends(require_role(["A
     finally:
         db.close()
 
+
+@router.patch("/job-descriptions/{jd_id}/status")
+def update_jd_status(jd_id: str, new_status: JobStatus, user=Depends(require_role(["ARRequestor"]))):
+    db: Session = SessionLocal()
+    try:
+        jd = db.query(JobDescription).filter_by(id=jd_id).first()
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job Description not found")
+
+        jd.status = new_status
+        db.commit()
+
+        # ✅ Trigger email only if status set to 'Completed'
+        if new_status == JobStatus.completed:
+            print(f"JD {jd.id} marked as completed. Preparing to send email...")
+
+            # Get top 3 consultants by rank
+            rankings = db.query(Ranking).filter_by(jd_id=jd.id).order_by(Ranking.rank.asc()).limit(3).all()
+            if not rankings:
+                return {"message": "JD marked completed, but no consultant rankings found."}
+
+            consultants = []
+            for r in rankings:
+                profile = db.query(ConsultantProfile).filter_by(id=r.profile_id).first()
+                score_entry = db.query(SimilarityScore).filter_by(jd_id=jd.id, profile_id=r.profile_id).first()
+                if profile:
+                    consultants.append({
+                        "consultant_id": profile.id,
+                        "name": profile.name,
+                        "email": profile.email,
+                        "score": round(score_entry.similarity_score, 2) if score_entry else 0.0,
+                        "explanation": r.explanation
+                    })
+
+            # Get JD owner (AR)
+            ar_user = db.query(User).filter_by(user_id=jd.user_id).first()
+            if not ar_user:
+                raise HTTPException(status_code=404, detail="Associated user not found for JD")
+
+            # Generate report and send email
+            pdf_url = generate_consultant_report(jd.id, consultants, jd_obj=jd)
+            status = send_consultant_report_email(ar_user.email, jd.id, pdf_url, db, consultants)
+
+            # ✅ Always add new email notification entry
+            db.add(EmailNotification(
+                jd_id=jd.id,
+                recipient_email=ar_user.email,
+                status="Sent" if status.lower() == "sent" else "Failed",
+                sent_at=datetime.utcnow()
+            ))
+
+            # ✅ Update WorkflowStatus (comparison, ranking, email)
+            init_or_update_workflow_status(db, jd.id)
+            workflow = db.query(WorkflowStatus).filter_by(jd_id=jd.id).first()
+            if workflow:
+                workflow.email_status = NotificationStatus.sent if status.lower() == "sent" else NotificationStatus.failed
+            db.commit()
+
+            return {"message": f"JD completed and consultant report email {'sent' if status.lower() == 'sent' else 'failed'}."}
+
+        return {"message": f"JD status updated to {new_status}"}
+    finally:
+        db.close()
