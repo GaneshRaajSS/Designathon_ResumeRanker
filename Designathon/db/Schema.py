@@ -128,7 +128,6 @@ class JobDescriptionCreate(BaseModel):
 class JobDescriptionResponse(JobDescriptionCreate):
     id: str
     user_id: str
-    embedding: Optional[List[float]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

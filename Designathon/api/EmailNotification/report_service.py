@@ -82,6 +82,96 @@ def generate_sas_url(blob_path: str) -> str:
     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
     return f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_path}"
 
+# def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None) -> str:
+#     pdf = ReportPDF()
+#     pdf.add_page()
+#     pdf.set_font("Arial", "", 12)
+
+#     # Job Description Header
+#     pdf.set_fill_color(240, 240, 240)
+#     pdf.set_font("Arial", "B", 13)
+#     pdf.cell(0, 10, "Job Description", ln=True, fill=True)
+#     pdf.set_font("Arial", "", 12)
+#     pdf.cell(0, 8, f"Title: {jd_obj.title}", ln=True)
+#     pdf.cell(0, 8, f"Skills: {jd_obj.skills}", ln=True)
+#     pdf.cell(0, 8, f"Experience: {jd_obj.experience}", ln=True)
+#     pdf.cell(0, 8, f"End Date: {jd_obj.end_date.strftime('%Y-%m-%d')}", ln=True)
+#     pdf.ln(5)
+
+#     # Section: Consultant Table
+#     pdf.set_fill_color(230, 230, 255)
+#     pdf.set_font("Arial", "B", 13)
+#     pdf.cell(0, 10, "Top Ranked Consultants", ln=True, fill=True)
+#     pdf.ln(3)
+
+#     jd_skills_list = normalize_and_filter_skills(jd_obj.skills if jd_obj else "")
+#     labels, scores = [], []
+
+#     for i, c in enumerate(consultants, 1):
+#         name = c.get("name", "Unknown")
+#         email = c.get("email", "Unknown")
+#         score = c.get("score", 0)
+#         explanation = c.get("explanation", "No GPT explanation provided.")
+#         consultant_skills_list = normalize_and_filter_skills(c.get("skills", ""))
+#         missing_skills = extract_missing_skills_from_gpt(jd_skills_list, consultant_skills_list, explanation)
+#         cleaned_explanation = clean_gpt_explanation(explanation)
+        
+
+#         labels.append(name)
+#         scores.append(score)
+
+#         pdf.set_font("Arial", "B", 12)
+#         pdf.set_text_color(0)
+#         pdf.cell(0, 8, f"{i}. {name}", ln=True)
+
+#         pdf.set_font("Arial", "", 11)
+#         pdf.cell(0, 6, f"Email: {email}", ln=True)
+#         pdf.cell(0, 6, f"Score: {score:.2f}", ln=True)
+
+#         if missing_skills:
+#             pdf.set_text_color(200, 0, 0)
+#             pdf.cell(0, 6, f"Missing Skills: {', '.join(missing_skills)}", ln=True)
+#             pdf.set_text_color(0, 0, 0)
+
+#         pdf.set_font("Arial", "", 11)
+#         pdf.multi_cell(0, 6, cleaned_explanation)
+#         pdf.ln(1)
+
+#     # ---- Charts (side by side) ----
+#     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+
+#     # Pie Chart
+#     ax1.pie(scores, labels=labels, autopct='%1.1f%%', startangle=90)
+#     ax1.set_title("Score Distribution")
+
+#     # Bar Chart
+#     ax2.bar(labels, scores, color='skyblue')
+#     ax2.set_ylabel('Score')
+#     ax2.set_title('Consultant Scores')
+#     ax2.tick_params(axis='x', rotation=45)
+
+#     # Save single combined chart
+#     chart_path = tempfile.NamedTemporaryFile(suffix='.png', delete=False).name
+#     plt.tight_layout()
+#     plt.savefig(chart_path)
+#     plt.close()
+
+#     pdf.set_font("Arial", "B", 13)
+#     pdf.set_fill_color(245, 245, 245)
+#     pdf.cell(0, 10, "Visual Summary", ln=True, fill=True)
+#     pdf.image(chart_path, x=15, y=None, w=180)
+#     pdf.ln(10)
+
+#     # --- Save and Upload
+#     pdf_bytes = pdf.output(dest='S').encode('latin1')
+#     buffer = BytesIO(pdf_bytes)
+#     blob_name = f"reports/{jd_id}/consultant_report.pdf"
+#     blob_service = BlobServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
+#     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
+#     blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
+#     blob_client.upload_blob(buffer, overwrite=True, standard_blob_tier= StandardBlobTier.Cool)
+
+#     return generate_sas_url(blob_name)
 def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None) -> str:
     pdf = ReportPDF()
     pdf.add_page()
@@ -105,20 +195,14 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
     pdf.ln(3)
 
     jd_skills_list = normalize_and_filter_skills(jd_obj.skills if jd_obj else "")
-    labels, scores = [], []
 
     for i, c in enumerate(consultants, 1):
         name = c.get("name", "Unknown")
         email = c.get("email", "Unknown")
-        score = c.get("score", 0)
         explanation = c.get("explanation", "No GPT explanation provided.")
         consultant_skills_list = normalize_and_filter_skills(c.get("skills", ""))
         missing_skills = extract_missing_skills_from_gpt(jd_skills_list, consultant_skills_list, explanation)
         cleaned_explanation = clean_gpt_explanation(explanation)
-        
-
-        labels.append(name)
-        scores.append(score)
 
         pdf.set_font("Arial", "B", 12)
         pdf.set_text_color(0)
@@ -126,7 +210,6 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
 
         pdf.set_font("Arial", "", 11)
         pdf.cell(0, 6, f"Email: {email}", ln=True)
-        pdf.cell(0, 6, f"Score: {score:.2f}", ln=True)
 
         if missing_skills:
             pdf.set_text_color(200, 0, 0)
@@ -137,41 +220,52 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
         pdf.multi_cell(0, 6, cleaned_explanation)
         pdf.ln(1)
 
-    # ---- Charts (side by side) ----
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+    # Skip visual summary if only 1 consultant
+    if len(consultants) > 1:
+        labels = [c.get("name", "Unknown") for c in consultants]
+        scores = [c.get("score", 0) for c in consultants]
 
-    # Pie Chart
-    ax1.pie(scores, labels=labels, autopct='%1.1f%%', startangle=90)
-    ax1.set_title("Score Distribution")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
-    # Bar Chart
-    ax2.bar(labels, scores, color='skyblue')
-    ax2.set_ylabel('Score')
-    ax2.set_title('Consultant Scores')
-    ax2.tick_params(axis='x', rotation=45)
+        ax1.pie(scores, labels=labels, autopct='%1.1f%%', startangle=90)
+        ax1.set_title("Score Distribution")
 
-    # Save single combined chart
-    chart_path = tempfile.NamedTemporaryFile(suffix='.png', delete=False).name
-    plt.tight_layout()
-    plt.savefig(chart_path)
-    plt.close()
+        ax2.bar(labels, scores, color='skyblue')
+        ax2.set_ylabel('Score')
+        ax2.set_title('Consultant Scores')
+        ax2.tick_params(axis='x', rotation=45)
 
-    pdf.set_font("Arial", "B", 13)
-    pdf.set_fill_color(245, 245, 245)
-    pdf.cell(0, 10, "Visual Summary", ln=True, fill=True)
-    pdf.image(chart_path, x=15, y=None, w=180)
-    pdf.ln(10)
+        chart_path = tempfile.NamedTemporaryFile(suffix='.png', delete=False).name
+        plt.tight_layout()
+        plt.savefig(chart_path)
+        plt.close()
 
-    # --- Save and Upload
+        pdf.set_font("Arial", "B", 13)
+        pdf.set_fill_color(245, 245, 245)
+        pdf.cell(0, 10, "Visual Summary", ln=True, fill=True)
+        pdf.image(chart_path, x=15, y=None, w=180)
+        pdf.ln(10)
+
+        try:
+            os.unlink(chart_path)
+        except Exception as e:
+            print("Warning: temp chart deletion failed:", e)
+
+        avg_score = sum(scores) / len(scores)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, f"Average Score: {avg_score:.2f}", ln=True)
+
+    # Final upload to Azure Blob
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     buffer = BytesIO(pdf_bytes)
     blob_name = f"reports/{jd_id}/consultant_report.pdf"
     blob_service = BlobServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
     blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
-    blob_client.upload_blob(buffer, overwrite=True, standard_blob_tier= StandardBlobTier.Cool)
+    blob_client.upload_blob(buffer, overwrite=True, standard_blob_tier=StandardBlobTier.Cool)
 
     return generate_sas_url(blob_name)
+
 
 
 class ConsultantReportPDF(FPDF):

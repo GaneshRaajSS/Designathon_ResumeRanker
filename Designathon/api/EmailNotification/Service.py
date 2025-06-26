@@ -1,9 +1,9 @@
-from db.Model import EmailNotification, User, WorkflowStatus, JobDescription
+from db.Model import EmailNotification, User, WorkflowStatus, JobDescription, Ranking,ConsultantProfile
 from JDdb import SessionLocal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from azure.communication.email import EmailClient
-import os, base64, requests
-from datetime import datetime
+import os, base64, requests, asyncio
+from datetime import datetime, date
 from enums import WorkflowStepStatus, NotificationStatus
 import time
 from api.EmailNotification.report_service import generate_pdf_report_by_consultant
@@ -168,35 +168,190 @@ def update_workflow_status(db: Session, jd_id: str, email_status: NotificationSt
     db.commit()
 
 
+# def send_email_with_consultant_report(profile_id: str, recipient_email: str):
+#     pdf_buffer = generate_pdf_report_by_consultant(profile_id)
+#     pdf_bytes = pdf_buffer.read()
 
-def send_email_with_consultant_report(profile_id: str, recipient_email: str):
-    pdf_buffer = generate_pdf_report_by_consultant(profile_id)
-    pdf_bytes = pdf_buffer.read()
+#     email_client = EmailClient.from_connection_string(os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING"))
 
-    email_client = EmailClient.from_connection_string(os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING"))
+#     attachment = {
+#         "name": "Consultant_Report.pdf",
+#         "attachmentType": "inline",  # or "attachment"
+#         "contentType": "application/pdf",  # ✅ important
+#         "contentInBase64": base64.b64encode(pdf_bytes).decode()
+#     }
 
-    attachment = {
-        "name": "Consultant_Report.pdf",
-        "attachmentType": "inline",  # or "attachment"
-        "contentType": "application/pdf",  # ✅ important
-        "contentInBase64": base64.b64encode(pdf_bytes).decode()
-    }
+#     message = {
+#         "senderAddress": os.getenv("EMAIL_SENDER_ADDRESS"),
+#         "recipients": {
+#             "to": [{"address": recipient_email}]
+#         },
+#         "content": {
+#             "subject": "Consultant Report",
+#             "plainText": "Please find the attached consultant ranking report PDF.",
+#         },
+#         "attachments": [attachment]
+#     }
 
-    message = {
-        "senderAddress": os.getenv("EMAIL_SENDER_ADDRESS"),
-        "recipients": {
-            "to": [{"address": recipient_email}]
-        },
-        "content": {
-            "subject": "Consultant Report",
-            "plainText": "Please find the attached consultant ranking report PDF.",
-        },
-        "attachments": [attachment]
-    }
+#     try:
+#         poller = email_client.begin_send(message)
+#         result = poller.result()
+#         return {"status": "sent", "message_id": result.message_id}
+#     except Exception as e:  
+#         return {"status": "failed", "error": str(e)}
 
+# def send_expired_jd_emails():
+#     db = SessionLocal()
+#     today = date.today()
+
+#     # ✅ Fetch JDs whose end date is today and not completed
+#     jds = db.query(JobDescription).filter(
+#         JobDescription.end_date == today,
+#         JobDescription.status != "completed"
+#     ).all()
+
+#     for jd in jds:
+#         # ✅ Skip if email already sent
+#         existing_email = db.query(EmailNotification).filter_by(jd_id=jd.id, status="Sent").first()
+#         if existing_email:
+#             continue
+
+#         user = db.query(User).filter(User.id == jd.user_id).first()
+#         if not user:
+#             continue
+
+#         top_rankings = db.query(Ranking).filter(Ranking.jd_id == jd.id).order_by(Ranking.score.desc()).all()
+
+#         consultants = []
+#         for r in top_rankings:
+#             profile = db.query(ConsultantProfile).filter_by(id=r.consultant_id).first()
+#             if profile:
+#                 consultants.append({
+#                     "consultant_id": profile.id,
+#                     "name": profile.name,
+#                     "email": profile.email,
+#                     "score": r.score
+#                 })
+
+#         # ✅ Proceed only if there are consultants ranked
+#         if consultants:
+#             pdf_url = generate_sas_url(f"reports/{jd.id}.pdf")
+#             try:
+#                 send_consultant_report_email(user.email, jd.id, pdf_url, db, consultants)
+#                 jd.status = "completed"
+#                 db.commit()
+#             except Exception as e:
+#                 print(f"❌ Failed to send email for JD {jd.id}: {e}")
+#                 db.rollback()
+
+#     db.close()
+
+# async def jd_email_scheduler():
+#     while True:
+#         send_expired_jd_emails()
+#         await asyncio.sleep(86400) 
+
+
+
+def send_expired_jd_emails():
+    db: Session = SessionLocal()
+    today = date.today()
+
+    expired_jds = (
+        db.query(JobDescription)
+        .options(joinedload(JobDescription.rankings), joinedload(JobDescription.user))
+        .filter(
+            JobDescription.end_date < today,
+            JobDescription.status != "completed",
+            ~db.query(EmailNotification)
+                .filter(
+                    EmailNotification.jd_id == JobDescription.id,
+                    EmailNotification.status == "Sent"
+                )
+                .exists()
+        )
+        .all()
+    )
+
+    for jd in expired_jds:
+        if jd.rankings:
+            sas_url = generate_sas_url(jd.id)
+            send_consultant_report_email(jd.id, sas_url)
+            db.add(EmailNotification(
+                jd_id=jd.id,
+                recipient_email=jd.user.email,
+                status="Sent"
+            ))
+    db.commit()
+
+
+
+def send_email_with_consultant_report(jd_id: str, recipient_email: str):
+    from api.EmailNotification.report_service import generate_consultant_report
+
+    db: Session = SessionLocal()
     try:
+        jd = db.query(JobDescription).filter_by(id=jd_id).first()
+        if not jd:
+            raise Exception("❌ JD not found")
+
+        # 🔎 Get top 3 ranked consultants
+        rankings = (
+            db.query(Ranking)
+            .filter_by(jd_id=jd_id)
+            .order_by(Ranking.rank.asc())
+            .limit(3)
+            .all()
+        )
+
+        consultants = []
+        for rank in rankings:
+            profile = db.query(ConsultantProfile).filter_by(id=rank.profile_id).first()
+            if profile:
+                consultants.append({
+                    "consultant_id": profile.id,
+                    "name": profile.name,
+                    "email": profile.email,
+                    "score": None,  # Optional: fetch from SimilarityScore if needed
+                    "explanation": rank.explanation
+                })
+
+        # 🧾 Generate full JD report
+        pdf_url = generate_consultant_report(jd_id, consultants, jd_obj=jd)
+
+        # 📄 Download PDF and encode
+        response = requests.get(pdf_url)
+        response.raise_for_status()
+        pdf_bytes = response.content
+        encoded_file = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        # 📧 Prepare email
+        email_client = EmailClient.from_connection_string(os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING"))
+        attachment = {
+            "name": f"Consultant_Report_{jd_id}.pdf",
+            "attachmentType": "inline",
+            "contentType": "application/pdf",
+            "contentInBase64": encoded_file
+        }
+
+        message = {
+            "senderAddress": os.getenv("EMAIL_SENDER_ADDRESS"),
+            "recipients": {
+                "to": [{"address": recipient_email}]
+            },
+            "content": {
+                "subject": f"Consultant Report for JD {jd.title}",
+                "plainText": "Attached is the consultant ranking report.",
+            },
+            "attachments": [attachment]
+        }
+
         poller = email_client.begin_send(message)
         result = poller.result()
-        return {"status": "sent", "message_id": result.message_id}
+        return {"status": "sent", "message_id": result.get("messageId")} 
+
     except Exception as e:
+        print(f"❌ Failed to send consultant report email for JD {jd_id}: {str(e)}")
         return {"status": "failed", "error": str(e)}
+    finally:
+        db.close()

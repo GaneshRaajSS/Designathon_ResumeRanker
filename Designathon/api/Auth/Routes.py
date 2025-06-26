@@ -43,7 +43,7 @@ def login():
 
 @router.get("/logout")
 def logout():
-    response = RedirectResponse("/docs")
+    response = RedirectResponse("/")
     response.delete_cookie("access_token")
     return response
 

@@ -1,71 +1,104 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from db.Schema import JobDescriptionResponse, JobDescriptionCreate
-from .Service import create_job_description, get_job_description
+from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
+from api.EmailNotification.report_service import generate_consultant_report
+from api.Auth.okta_auth import require_role
+from api.EmailNotification.Service import send_consultant_report_email
+from datetime import datetime
 import fitz, re
 from api.Auth.okta_auth import get_current_user, require_role
 from JDdb import SessionLocal
-from db.Model import User,JobDescription
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session
+from db.Model import EmailNotification, Ranking, JobDescription, ConsultantProfile, User, Application, SimilarityScore, WorkflowStatus
+from typing import List
+from enums import JobStatus, NotificationStatus, WorkflowStepStatus
+from agents.ranking_service import init_or_update_workflow_status
 
 router = APIRouter()
 
-
-@router.get("/job-descriptions/{jd_id}", response_model=JobDescriptionResponse)
-def read_jd( jd_id: str, user=Depends(require_role(["User"]))):
-    db = SessionLocal()
+#To See all JDs
+@router.get("/job-descriptions", response_model=List[JobDescriptionResponse])
+def get_all_job_descriptions(
+    skip: int = 0,
+    limit: int = 50,
+):
+    db: Session = SessionLocal()
     try:
-        # ✅ Get current user ID by their email from JWT
-        current_user = db.query(User).filter_by(email=user["sub"]).first()
-        if not current_user:
-            raise HTTPException(status_code=401, detail="User not found")
-
-        jd = get_job_description(jd_id)
-        if not jd:
-            raise HTTPException(status_code=404, detail="Job Description not found")
-
-        # ✅ Check if this JD was created by the logged-in user
-        if str(jd.user_id) != str(current_user.user_id):
-            return {
-                "error": "Access denied",
-                "jd_user_id": jd.user_id,
-                "current_user_user_id": current_user.user_id,
-                "jwt_email": user["sub"]
-            }
-        return jd
-
-    finally:
-        db.close()
-
-@router.get("/job-descriptions/me", response_model=list[JobDescriptionResponse])
-def get_my_job_descriptions(user=Depends(require_role(["ARRequestor", "User"]))):
-    db = SessionLocal()
-    try:
-        print("🔐 User from token:", user)  # Debug: Token details
-
-        current_user = db.query(User).filter_by(email=user["sub"]).first()
-
-        if not current_user:
-            print("❌ No user found for email:", user["sub"])  # Debug: User not found
-            raise HTTPException(status_code=401, detail="User not found")
-
-        print("✅ Current user ID:", current_user.user_id)  # Debug: User ID
-
-        job_descriptions = (
+        jds = (
             db.query(JobDescription)
-            .options(joinedload(JobDescription.user))
-            .filter(JobDescription.user_id == current_user.user_id)
+            .order_by(JobDescription.created_at.desc())
+            .offset(skip)
+            .limit(limit)
             .all()
         )
 
-        print(f"📄 Job descriptions found: {len(job_descriptions)}")  # Debug: Count of JDs
+        if not jds:
+            raise HTTPException(status_code=404, detail="No Job Descriptions found")
 
-        return job_descriptions
+        return jds
+    finally:
+        db.close()
+
+#AR Requestor JD 
+@router.get("/job-descriptions/me", response_model=List[JobDescriptionResponse])
+def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
+    db = SessionLocal()
+    try:
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        return get_job_descriptions_by_user(current_user.user_id)
 
     finally:
         db.close()
 
- 
+@router.get("/users/me/applied-jobs")
+async def get_applied_jobs_for_logged_user(request: Request, user=Depends(get_current_user)):
+    db: Session = SessionLocal()
+    try:
+        # Step 1: Get current user by email from token
+        user_email = user.get("sub")
+        current_user = db.query(User).filter_by(email=user_email).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Step 2: Get consultant profile(s) created by the user
+        consultant_profiles = db.query(ConsultantProfile).filter_by(user_id=current_user.user_id).all()
+        if not consultant_profiles:
+            raise HTTPException(status_code=404, detail="No consultant profiles found for user")
+
+        consultant_ids = [cp.id for cp in consultant_profiles]
+
+        # Step 3: Get applications for those consultant profiles
+        applications = db.query(Application).filter(Application.profile_id.in_(consultant_ids)).all()
+        if not applications:
+            return {"applied_jobs": []}
+
+        jd_ids = [app.jd_id for app in applications]
+
+        # Step 4: Fetch Job Descriptions
+        jds = db.query(JobDescription).filter(JobDescription.id.in_(jd_ids)).all()
+
+        # Step 5: Format response
+        return {
+            "user_id": current_user.user_id,
+            "applied_jobs": [
+                {
+                    "id": jd.id,
+                    "title": jd.title,
+                    "description": jd.description,
+                    "skills": jd.skills,
+                    "experience": jd.experience,
+                    "status": jd.status,
+                    "end_date": jd.end_date,
+                } for jd in jds
+            ]
+        }
+
+    finally:
+        db.close()
 
 def extract_text_from_pdf(file: UploadFile) -> str:
     doc = fitz.open(stream=file.file.read(), filetype="pdf")
@@ -173,3 +206,66 @@ async def submit_jd(jd_data: JobDescriptionCreate, user=Depends(require_role(["A
     finally:
         db.close()
 
+
+@router.patch("/job-descriptions/{jd_id}/status")
+def update_jd_status(jd_id: str, new_status: JobStatus, user=Depends(require_role(["ARRequestor"]))):
+    db: Session = SessionLocal()
+    try:
+        jd = db.query(JobDescription).filter_by(id=jd_id).first()
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job Description not found")
+
+        jd.status = new_status
+        db.commit()
+
+        # ✅ Trigger email only if status set to 'Completed'
+        if new_status == JobStatus.completed:
+            print(f"JD {jd.id} marked as completed. Preparing to send email...")
+
+            # Get top 3 consultants by rank
+            rankings = db.query(Ranking).filter_by(jd_id=jd.id).order_by(Ranking.rank.asc()).limit(3).all()
+            if not rankings:
+                return {"message": "JD marked completed, but no consultant rankings found."}
+
+            consultants = []
+            for r in rankings:
+                profile = db.query(ConsultantProfile).filter_by(id=r.profile_id).first()
+                score_entry = db.query(SimilarityScore).filter_by(jd_id=jd.id, profile_id=r.profile_id).first()
+                if profile:
+                    consultants.append({
+                        "consultant_id": profile.id,
+                        "name": profile.name,
+                        "email": profile.email,
+                        "score": round(score_entry.similarity_score, 2) if score_entry else 0.0,
+                        "explanation": r.explanation
+                    })
+
+            # Get JD owner (AR)
+            ar_user = db.query(User).filter_by(user_id=jd.user_id).first()
+            if not ar_user:
+                raise HTTPException(status_code=404, detail="Associated user not found for JD")
+
+            # Generate report and send email
+            pdf_url = generate_consultant_report(jd.id, consultants, jd_obj=jd)
+            status = send_consultant_report_email(ar_user.email, jd.id, pdf_url, db, consultants)
+
+            # ✅ Always add new email notification entry
+            db.add(EmailNotification(
+                jd_id=jd.id,
+                recipient_email=ar_user.email,
+                status="Sent" if status.lower() == "sent" else "Failed",
+                sent_at=datetime.utcnow()
+            ))
+
+            # ✅ Update WorkflowStatus (comparison, ranking, email)
+            init_or_update_workflow_status(db, jd.id)
+            workflow = db.query(WorkflowStatus).filter_by(jd_id=jd.id).first()
+            if workflow:
+                workflow.email_status = NotificationStatus.sent if status.lower() == "sent" else NotificationStatus.failed
+            db.commit()
+
+            return {"message": f"JD completed and consultant report email {'sent' if status.lower() == 'sent' else 'failed'}."}
+
+        return {"message": f"JD status updated to {new_status}"}
+    finally:
+        db.close()
