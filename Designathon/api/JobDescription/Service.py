@@ -2,10 +2,12 @@
 import uuid
 from datetime import datetime, timedelta, date
 from sqlalchemy.exc import SQLAlchemyError
-from db.Model import JobDescription, WorkflowStatus
+from db.Model import JobDescription, WorkflowStatus,User, Ranking, ConsultantProfile, SimilarityScore,EmailNotification
 from JDdb import SessionLocal
+from api.EmailNotification.report_service import generate_consultant_report, generate_sas_url
+from api.EmailNotification.Service import send_consultant_report_email
 from agents.embedding_service import get_embedding
-from enums import JobStatus
+from enums import JobStatus, NotificationStatus
 from sqlalchemy.orm import Session
 
 async def create_job_description(data):
@@ -88,19 +90,74 @@ def get_job_descriptions_by_user(user_id: str):
     finally:
         db.close()
 
-        
+
 def mark_expired_jds_as_completed():
     db: Session = SessionLocal()
     try:
         today = date.today()
-        updated = db.query(JobDescription).filter(
+        print("🔍 Checking for expired Job Descriptions...")
+
+        expired_jds = db.query(JobDescription).filter(
             JobDescription.status != JobStatus.completed,
             JobDescription.end_date < today
-        ).update({JobDescription.status: JobStatus.completed}, synchronize_session=False)
+        ).all()
+
+        print(f"🧾 Found {len(expired_jds)} expired JDs.")
+
+        for jd in expired_jds:
+            print(f"📌 Processing JD: {jd.id} - {jd.title}")
+            jd.status = JobStatus.completed
+
+            # Get JD owner
+            user = db.query(User).filter(User.user_id == jd.user_id).first()
+            if not user:
+                print(f"⚠️ No user found for JD {jd.id}")
+                continue
+
+            # Get top 3 consultants
+            rankings = db.query(Ranking).filter_by(jd_id=jd.id).order_by(Ranking.rank.asc()).limit(3).all()
+            if not rankings:
+                print(f"⚠️ No rankings found for JD {jd.id}")
+                continue
+
+            consultants = []
+            for r in rankings:
+                profile = db.query(ConsultantProfile).filter_by(id=r.profile_id).first()
+                score_entry = db.query(SimilarityScore).filter_by(jd_id=jd.id, profile_id=r.profile_id).first()
+                if profile:
+                    consultants.append({
+                        "consultant_id": profile.id,
+                        "name": profile.name,
+                        "email": profile.email,
+                        "score": round(score_entry.similarity_score, 2) if score_entry else 0.0,
+                        "explanation": r.explanation
+                    })
+
+            # Generate report
+            pdf_url = generate_consultant_report(jd.id, consultants, jd_obj=jd)
+            print(f"📄 PDF generated for JD {jd.id}: {pdf_url}")
+
+            # Send email
+            status = send_consultant_report_email(user.email, jd.id, pdf_url, db, consultants)
+            print(f"📬 Email send status for JD {jd.id}: {status}")
+
+            # Always add a new email record
+            db.add(EmailNotification(
+                jd_id=jd.id,
+                recipient_email=user.email,
+                status="Sent" if status.lower() == "sent" else "Failed",
+                sent_at=datetime.utcnow()
+            ))
+
+            # Update WorkflowStatus
+            workflow = db.query(WorkflowStatus).filter_by(jd_id=jd.id).first()
+            if workflow:
+                workflow.email_status = NotificationStatus.sent if status.lower() == "sent" else NotificationStatus.failed
+
         db.commit()
-        print(f"✅ Auto-completed {updated} expired job descriptions.")
+        print(f"✅ Completed processing {len(expired_jds)} expired JDs.")
     except Exception as e:
         db.rollback()
-        print(f"❌ Error marking expired JDs: {str(e)}")
+        print(f"❌ Error in mark_expired_jds_as_completed: {str(e)}")
     finally:
         db.close()

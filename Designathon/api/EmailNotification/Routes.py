@@ -21,20 +21,33 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.Auth.okta_auth import require_role
 from api.EmailNotification.Service import send_email_with_consultant_report
 from JDdb import SessionLocal
-from db.Model import ConsultantProfile
+from db.Model import ConsultantProfile, JobDescription
 
 router = APIRouter()
 
-@router.post("/send-report-by-consultant/{profile_id}")
-def send_report_by_consultant(
-    profile_id: str,
+# @router.post("/send-report-by-consultant/{profile_id}")
+# def send_report_by_consultant(
+#     profile_id: str,
+#     user=Depends(require_role(["Recruiter"]))  # ✅ Only Recruiters
+# ):
+#     db = SessionLocal()
+#     profile = db.query(ConsultantProfile).filter_by(id=profile_id).first()
+#     if not profile:
+#         raise HTTPException(status_code=404, detail="Consultant not found")
+
+#     send_email_with_consultant_report(profile_id, user["sub"])
+#     return {"message": f"Consultant match report sent to {user['sub']}"}
+
+
+@router.post("/send-report-by-jd/{jd_id}")
+def send_report_by_jd(
+    jd_id: str,
     user=Depends(require_role(["Recruiter"]))  # ✅ Only Recruiters
 ):
     db = SessionLocal()
-    profile = db.query(ConsultantProfile).filter_by(id=profile_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Consultant not found")
+    jd = db.query(JobDescription).filter_by(id=jd_id).first()
+    if not jd:
+        raise HTTPException(status_code=404, detail="Job Description not found")
 
-    send_email_with_consultant_report(profile_id, user["sub"])
-    return {"message": f"Consultant match report sent to {user['sub']}"}
-
+    send_email_with_consultant_report(jd_id, user["sub"])
+    return {"message": f"Consultant ranking report for JD {jd.title} sent to {user['sub']}"}
