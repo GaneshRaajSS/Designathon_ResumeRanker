@@ -4,7 +4,7 @@ import axios from 'axios';
 import AppliedJobs from '../AppliedJobs';
 import ApplyJobs from '../ApplyJobs';
 import Profile from '../Profile';
-
+const API = import.meta.env.VITE_API_BASE_URL;
 const Dashboard = () => {
     const [userName, setUserName] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
@@ -31,12 +31,15 @@ const Dashboard = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleLogout = () => {
-        axios.get(`${import.meta.env.VITE_API_BASE_URL}/logout`, { withCredentials: true })
-            .then(() => {
-                window.location.href = '/';
-            });
+    const handleLogout = async () => {
+        try {
+            await fetch(`${API}/logout`, { method: 'GET', credentials: 'include' });
+            navigate('/');
+        } catch (err) {
+            console.error("Logout failed:", err);
+        }
     };
+
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -140,8 +143,8 @@ const Dashboard = () => {
                         <button
                             onClick={() => setActiveTab('apply')}
                             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeTab === 'apply'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                                 }`}
                         >
                             Available Jobs
@@ -149,8 +152,8 @@ const Dashboard = () => {
                         <button
                             onClick={() => setActiveTab('applied')}
                             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeTab === 'applied'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                                 }`}
                         >
                             My Applications
@@ -194,11 +197,11 @@ const Dashboard = () => {
                         </div>
                     )}
                     {activeTab === 'profile' && (
-  <div className="p-6">
-    <h2 className="text-lg font-semibold text-slate-900 mb-4">Your Profile</h2>
-    <Profile />
-  </div>
-)}
+                        <div className="p-6">
+                            <h2 className="text-lg font-semibold text-slate-900 mb-4">Your Profile</h2>
+                            <Profile />
+                        </div>
+                    )}
 
                 </div>
             </main>
