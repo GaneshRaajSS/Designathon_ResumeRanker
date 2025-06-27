@@ -40,9 +40,7 @@ const AppliedJobs = () => {
           >
             <h3 className="text-lg font-semibold text-indigo-700">{job.title}</h3>
             <p className="text-sm text-gray-600">Experience: {job.experience}</p>
-            <p className="text-sm text-gray-600">
-              Posted by: {job.user?.name || 'You'}
-            </p>
+            
             <p className="text-sm text-gray-700 mt-2">
               <strong>Description:</strong> {job.description}
             </p>
