@@ -189,5 +189,6 @@ async def extract_sections(text: str) -> dict:
             ["Experience", "Education", "Qualification", "Synopsis", "Areas of Experience"]
         ),
         "sentences": sentences,
+
         "tokens": tokenized_sentences
     }
