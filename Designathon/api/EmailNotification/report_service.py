@@ -10,7 +10,8 @@ from difflib import SequenceMatcher
 from skills import known_skills
 from JDdb import SessionLocal
 from db.Model import ConsultantProfile, Ranking, JobDescription
-
+from api.ConsultantProfiles.Extractor import normalize_skills
+db = SessionLocal()
 matplotlib.use("Agg") 
 
 class ReportPDF(FPDF):
@@ -49,8 +50,12 @@ def map_to_known_skill(skill: str) -> str | None:
     return best_match if best_score >= 0.75 else None
 
 def fuzzy_skill_match(skill: str, skill_list: list[str]) -> bool:
+    skill = skill.strip().lower()
     for s in skill_list:
-        if SequenceMatcher(None, skill, s).ratio() >= 0.8:
+        s_clean = s.strip().lower()
+        if skill == s_clean:
+            return True
+        if SequenceMatcher(None, skill, s_clean).ratio() >= 0.75:  # lowered threshold slightly
             return True
     return False
 
@@ -82,96 +87,6 @@ def generate_sas_url(blob_path: str) -> str:
     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
     return f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_path}"
 
-# def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None) -> str:
-#     pdf = ReportPDF()
-#     pdf.add_page()
-#     pdf.set_font("Arial", "", 12)
-
-#     # Job Description Header
-#     pdf.set_fill_color(240, 240, 240)
-#     pdf.set_font("Arial", "B", 13)
-#     pdf.cell(0, 10, "Job Description", ln=True, fill=True)
-#     pdf.set_font("Arial", "", 12)
-#     pdf.cell(0, 8, f"Title: {jd_obj.title}", ln=True)
-#     pdf.cell(0, 8, f"Skills: {jd_obj.skills}", ln=True)
-#     pdf.cell(0, 8, f"Experience: {jd_obj.experience}", ln=True)
-#     pdf.cell(0, 8, f"End Date: {jd_obj.end_date.strftime('%Y-%m-%d')}", ln=True)
-#     pdf.ln(5)
-
-#     # Section: Consultant Table
-#     pdf.set_fill_color(230, 230, 255)
-#     pdf.set_font("Arial", "B", 13)
-#     pdf.cell(0, 10, "Top Ranked Consultants", ln=True, fill=True)
-#     pdf.ln(3)
-
-#     jd_skills_list = normalize_and_filter_skills(jd_obj.skills if jd_obj else "")
-#     labels, scores = [], []
-
-#     for i, c in enumerate(consultants, 1):
-#         name = c.get("name", "Unknown")
-#         email = c.get("email", "Unknown")
-#         score = c.get("score", 0)
-#         explanation = c.get("explanation", "No GPT explanation provided.")
-#         consultant_skills_list = normalize_and_filter_skills(c.get("skills", ""))
-#         missing_skills = extract_missing_skills_from_gpt(jd_skills_list, consultant_skills_list, explanation)
-#         cleaned_explanation = clean_gpt_explanation(explanation)
-        
-
-#         labels.append(name)
-#         scores.append(score)
-
-#         pdf.set_font("Arial", "B", 12)
-#         pdf.set_text_color(0)
-#         pdf.cell(0, 8, f"{i}. {name}", ln=True)
-
-#         pdf.set_font("Arial", "", 11)
-#         pdf.cell(0, 6, f"Email: {email}", ln=True)
-#         pdf.cell(0, 6, f"Score: {score:.2f}", ln=True)
-
-#         if missing_skills:
-#             pdf.set_text_color(200, 0, 0)
-#             pdf.cell(0, 6, f"Missing Skills: {', '.join(missing_skills)}", ln=True)
-#             pdf.set_text_color(0, 0, 0)
-
-#         pdf.set_font("Arial", "", 11)
-#         pdf.multi_cell(0, 6, cleaned_explanation)
-#         pdf.ln(1)
-
-#     # ---- Charts (side by side) ----
-#     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-
-#     # Pie Chart
-#     ax1.pie(scores, labels=labels, autopct='%1.1f%%', startangle=90)
-#     ax1.set_title("Score Distribution")
-
-#     # Bar Chart
-#     ax2.bar(labels, scores, color='skyblue')
-#     ax2.set_ylabel('Score')
-#     ax2.set_title('Consultant Scores')
-#     ax2.tick_params(axis='x', rotation=45)
-
-#     # Save single combined chart
-#     chart_path = tempfile.NamedTemporaryFile(suffix='.png', delete=False).name
-#     plt.tight_layout()
-#     plt.savefig(chart_path)
-#     plt.close()
-
-#     pdf.set_font("Arial", "B", 13)
-#     pdf.set_fill_color(245, 245, 245)
-#     pdf.cell(0, 10, "Visual Summary", ln=True, fill=True)
-#     pdf.image(chart_path, x=15, y=None, w=180)
-#     pdf.ln(10)
-
-#     # --- Save and Upload
-#     pdf_bytes = pdf.output(dest='S').encode('latin1')
-#     buffer = BytesIO(pdf_bytes)
-#     blob_name = f"reports/{jd_id}/consultant_report.pdf"
-#     blob_service = BlobServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
-#     container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME")
-#     blob_client = blob_service.get_blob_client(container=container_name, blob=blob_name)
-#     blob_client.upload_blob(buffer, overwrite=True, standard_blob_tier= StandardBlobTier.Cool)
-
-#     return generate_sas_url(blob_name)
 def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None) -> str:
     pdf = ReportPDF()
     pdf.add_page()
@@ -194,14 +109,26 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
     pdf.cell(0, 10, "Top Ranked Consultants", ln=True, fill=True)
     pdf.ln(3)
 
-    jd_skills_list = normalize_and_filter_skills(jd_obj.skills if jd_obj else "")
+    # jd_skills_list = normalize_and_filter_skills(jd_obj.skills if jd_obj else "")
+    jd_skills_list = normalize_skills(jd_obj.skills or "")
+    jd_skills_set = set(jd_skills_list)
 
     for i, c in enumerate(consultants, 1):
         name = c.get("name", "Unknown")
         email = c.get("email", "Unknown")
         explanation = c.get("explanation", "No GPT explanation provided.")
-        consultant_skills_list = normalize_and_filter_skills(c.get("skills", ""))
-        missing_skills = extract_missing_skills_from_gpt(jd_skills_list, consultant_skills_list, explanation)
+        
+        consultant_skills_raw = c.get("skills")
+        if not consultant_skills_raw:
+        # Fallback: fetch from DB
+            profile = db.query(ConsultantProfile).filter_by(email=email).first()
+            consultant_skills_raw = profile.skills if profile else ""
+
+        consultant_skills_list = normalize_skills(consultant_skills_raw or "")
+        consultant_skills_set = set(consultant_skills_list)
+        matched_skills = sorted(jd_skills_set & consultant_skills_set)
+        missing_skills = sorted(jd_skills_set - consultant_skills_set)
+        
         cleaned_explanation = clean_gpt_explanation(explanation)
 
         pdf.set_font("Arial", "B", 12)
@@ -211,11 +138,16 @@ def generate_consultant_report(jd_id: str, consultants: list[dict], jd_obj=None)
         pdf.set_font("Arial", "", 11)
         pdf.cell(0, 6, f"Email: {email}", ln=True)
 
+        if matched_skills:
+            pdf.set_text_color(0, 102, 0)
+            pdf.cell(0, 6, f"Matched Skills: {', '.join(matched_skills)}", ln=True)
+
+        # ❌ Missing Skills (red)
         if missing_skills:
             pdf.set_text_color(200, 0, 0)
             pdf.cell(0, 6, f"Missing Skills: {', '.join(missing_skills)}", ln=True)
-            pdf.set_text_color(0, 0, 0)
-
+        
+        pdf.set_text_color(0)
         pdf.set_font("Arial", "", 11)
         pdf.multi_cell(0, 6, cleaned_explanation)
         pdf.ln(1)

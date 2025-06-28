@@ -1,7 +1,7 @@
 known_skills = {
-    # Programming Languages & Frameworks
+    # Programming Languages
     "python": ["python", "py"],
-    "java": ["java"],
+    "java": ["java", "core java"],
     "javascript": ["javascript", "js"],
     "typescript": ["typescript", "ts"],
     "c#": ["c#", "c sharp"],
@@ -15,22 +15,44 @@ known_skills = {
     "rust": ["rust"],
     "perl": ["perl"],
     "shell scripting": ["shell scripting", "bash", "shell"],
-
-    # Web Development
-    "react": ["react", "reactjs"],
-    "angular": ["angular", "angularjs"],
+    "r": ["r programming", "r language"],
+    "matlab": ["matlab"],
+    "vb.net": ["vb.net", "visual basic"],
+    "abap": ["abap"],
+    "objective-c": ["objective-c", "objc"],
+    "pyspark": ["pyspark"],
+    "azure databricks": ["azure databricks", "databricks"],
+    "azure devops": ["azure devops", "devops azure"],
+    # Frontend
+    "react": ["react", "reactjs", "react js"],
+    "angular": ["angular", "angularjs", "angularjs"],
     "vue.js": ["vue", "vue.js"],
-    "node.js": ["nodejs", "node.js", "node"],
+    "svelte": ["svelte"],
+    "ember.js": ["ember.js", "ember"],
+    "next.js": ["next.js", "nextjs", "next js"],
+    "tailwind css": ["tailwind", "tailwindcss"],
+    "bootstrap": ["bootstrap"],
+    "html": ["html", "html5"],
+    "css": ["css", "css3"],
+    "sass": ["sass", "scss"],
+
+    # Backend
+    "node.js": ["nodejs", "node js", "node"],
     "django": ["django"],
     "flask": ["flask"],
     "express": ["express"],
     "laravel": ["laravel"],
     "spring": ["spring", "spring boot"],
-    "dotnet": [".net", "dotnet", "dot net", "asp.net", "asp net", "asp.net core"],
+    "dotnet": [".net", "dotnet", "dot net", "asp.net", "asp net", "asp.net core", ".net core", "maui", ".netcore"],
+    "rails": ["rails", "ruby on rails"],
+    "fastapi": ["fastapi"],
 
     # Databases
     "mysql": ["mysql", "my sql", "my-sql"],
-    "ms sql": ["ms sql", "microsoft sql server", "sql server", "mssql"],
+    "mssql": [
+        "ms sql", "microsoft sql server", "sql server", "mssql", "microsoft sql", 
+        "ms sql server 2022", "ms sql server", "ms sqlserver", "sql server 2022"
+    ],
     "postgresql": ["postgresql", "postgre sql", "postgres"],
     "oracle sql": ["oracle sql", "oracle"],
     "sqlite": ["sqlite"],
@@ -39,8 +61,11 @@ known_skills = {
     "cassandra": ["cassandra"],
     "elasticsearch": ["elasticsearch", "es"],
     "firebase": ["firebase"],
+    "snowflake": ["snowflake"],
+    "dynamodb": ["dynamodb"],
+    "couchdb": ["couchdb"],
 
-    # Cloud & DevOps
+    # DevOps & Cloud
     "aws": ["aws", "amazon web services"],
     "azure": ["azure", "microsoft azure"],
     "gcp": ["gcp", "google cloud platform"],
@@ -51,6 +76,31 @@ known_skills = {
     "ansible": ["ansible"],
     "prometheus": ["prometheus"],
     "grafana": ["grafana"],
+    "circleci": ["circleci"],
+    "travisci": ["travisci", "travis ci"],
+    "github actions": ["github actions", "git hub copilot", "github copilot"],
+    "helm": ["helm"],
+    "vagrant": ["vagrant"],
+
+    # Tools & IDEs
+    "git": ["git", "github", "git hub"],
+    "jira": ["jira"],
+    "confluence": ["confluence"],
+    "postman": ["postman"],
+    "swagger": ["swagger", "openapi"],
+    "vscode": ["vscode", "visual studio code", "vs code"],
+    "visual studio": ["visual studio", "vs studio", "vs"],
+    "eclipse": ["eclipse", "eclipse ide"],
+    "intellij": ["intellij", "intellij idea","intellij idea ide" ,"intellij ide"],
+    "pycharm": ["pycharm"],
+    "figma": ["figma"],
+    "notion": ["notion"],
+    "draw.io": ["draw.io", "diagrams.net"],
+    "zeplin": ["zeplin"],
+    "npm": ["npm"],
+    "yarn": ["yarn"],
+    "webpack": ["webpack"],
+    "babel": ["babel"],
 
     # AI / ML / Data Science
     "machine learning": ["machine learning", "ml"],
@@ -61,40 +111,64 @@ known_skills = {
     "keras": ["keras"],
     "opencv": ["opencv"],
     "nlp": ["nlp", "natural language processing"],
-    "computer vision": ["computer vision", "cv"],
-    "reinforcement learning": ["reinforcement learning", "rl"],
+    "transformers": ["transformers", "huggingface transformers"],
+    "xgboost": ["xgboost"],
+    "lightgbm": ["lightgbm"],
+    "matplotlib": ["matplotlib"],
+    "seaborn": ["seaborn"],
+    "pandas": ["pandas"],
+    "numpy": ["numpy"],
+    "gen ai": ["gen ai", "genai", "generative ai", "generativeai"],
+    "rag": ["rag"],
 
     # Generative AI & LLMs
-    "generative ai": ["generative ai", "gen ai", "gen-ai", "generative artificial intelligence"],
-    "chatgpt": ["chatgpt", "chat gpt"],
     "gpt": ["gpt", "gpt-3", "gpt-4", "openai gpt"],
+    "chatgpt": ["chatgpt", "chat gpt"],
     "llm": ["llm", "large language model", "large language models"],
-    "transformers": ["transformers", "huggingface transformers"],
-    "diffusion models": ["diffusion models", "latent diffusion", "stable diffusion"],
     "openai": ["openai"],
     "bard": ["bard"],
     "dall-e": ["dall-e", "dalle", "dall e"],
     "whisper": ["whisper", "openai whisper"],
+    "diffusion models": ["diffusion models", "latent diffusion", "stable diffusion"],
 
-    # Others / Tools
-    "excel": ["excel", "ms excel", "microsoft excel"],
+    # BI & Analytics
     "powerbi": ["powerbi", "power bi"],
     "tableau": ["tableau"],
-    "git": ["git"],
-    "postman": ["postman"],
-    "vscode": ["vscode", "visual studio code", "vs code"],
-    "jira": ["jira"],
-    "slack": ["slack"],
-    "Nunit": ["nunit"],
-    "postman": ["Postman", "postman"],
-    "postman": ["Postman", "postman"],
-    "A-Frame": ["a-frame", "aframe"],
-    "Blender": ["blender", "Blender"],
-
-
+    "looker": ["looker"],
+    "qlik": ["qlik", "qlikview", "qliksense"],
+    "excel": ["excel", "ms excel", "microsoft excel"],
 
     # Operating Systems
     "windows": ["windows", "microsoft windows"],
     "linux": ["linux"],
     "macos": ["macos", "osx", "mac os"],
+    "ubuntu": ["ubuntu"],
+    "redhat": ["redhat", "rhel"],
+    "centos": ["centos"],
+
+    # Others
+    "sap": ["sap"],
+    "dp-900": ["dp 900", "dp-900", "azure data fundamentals"],
+    "ai-900": ["ai 900", "ai-900", "azure ai fundamentals"],
+    "pl-900": ["pl 900", "pl-900", "power platform fundamentals"],
+    "sc-900": ["sc 900", "sc-900", "security compliance fundamentals"],
+    "salesforce": ["salesforce"],
+    "service now": ["servicenow", "service now"],
+    "shopify": ["shopify"],
+    "wordpress": ["wordpress", "wp"],
+    "drupal": ["drupal"],
+    "magento": ["magento"],
+    "blender": ["blender"],
+    "a-frame": ["a-frame", "aframe"],
+    "unity": ["unity", "unity3d"],
+    "unreal engine": ["unreal", "unreal engine", "ue4", "ue5"],
+    "nunit": ["nunit", "Nunit", "N unit"],
+    "junit": ["junit", "Junit"],
+}
+
+# Build reverse lookup dictionary
+skill_lookup = {
+    alias.lower(): canonical
+    for canonical, aliases in known_skills.items()
+    for alias in aliases
 }

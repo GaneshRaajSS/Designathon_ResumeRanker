@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 from JDdb import SessionLocal
-from db.Model import Application, Ranking, JobDescription, ConsultantProfile, User
+from db.Model import Application, Ranking, JobDescription, ConsultantProfile, User, SimilarityScore
 from db.Schema import ApplicationCreate  # Schema with just jd_id
 from agents.ranking_service import rank_profiles, finalize_and_notify
 from api.ConsultantProfiles.Service import move_resume_to_jd_folder
@@ -41,20 +41,6 @@ def apply_to_jd(
 
         return {"message": "Application submitted and ranking scheduled"}
 
-    finally:
-        db.close()
-
-async def rank_consultant(jd_id: str, profile_id: str):
-    db: Session = SessionLocal()
-    try:
-        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
-        profile = db.query(ConsultantProfile).filter(ConsultantProfile.id == profile_id).first()
-        if not jd or not profile:
-            return
-
-        result = await rank_profiles(jd, [profile])
-        await move_resume_to_jd_folder(profile.id, jd.id)
-        await finalize_and_notify(jd_id, result)
     finally:
         db.close()
 
@@ -104,3 +90,40 @@ def get_jd_applications(jd_id: str):
         }
         for profile, rank in results
     ]
+
+async def rank_consultant(jd_id: str, profile_id: str):
+    db: Session = SessionLocal()
+    try:
+        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+        profile = db.query(ConsultantProfile).filter_by(id=profile_id).first()
+        if not jd or not profile:
+            return
+         # 🚫 Don't recompute similarity score if it already exists
+        existing_score = db.query(SimilarityScore).filter_by(
+            jd_id=jd_id, profile_id=profile_id
+        ).first()
+
+        if not existing_score:
+            from agents.similarity_service import  compute_cosine_similarity
+            score = compute_cosine_similarity(jd.embedding, [profile.embedding])[0]
+            db.add(SimilarityScore(
+                jd_id=jd_id,
+                profile_id=profile_id,
+                similarity_score=score
+            ))
+            db.commit()
+            print(f"🧠 Similarity saved: {profile.name} — {score:.4f}")
+        else:
+            print(f"✅ Similarity already exists for {profile.name}, skipping.")
+        # Get ALL profiles that applied to this JD
+        applications = db.query(Application).filter_by(jd_id=jd_id).all()
+        profile_ids = [app.profile_id for app in applications]
+        profiles = db.query(ConsultantProfile).filter(ConsultantProfile.id.in_(profile_ids)).all()
+
+        if not profiles:
+            return
+
+        await rank_profiles(jd, profiles)
+    finally:
+        db.close()
+

@@ -9,17 +9,34 @@ const ApplyJobs = () => {
   const [appliedJobs, setAppliedJobs] = useState([]);
   const navigate = useNavigate();
 
-  // Fetch jobs on component mount
   useEffect(() => {
+    // Fetch applied job IDs
     axios
-      .get(`${import.meta.env.VITE_API_BASE_URL}/api/jobs`, { withCredentials: true })
+      .get(`${import.meta.env.VITE_API_BASE_URL}/api/users/me/applied-jobs`, {
+        withCredentials: true,
+      })
       .then((res) => {
-        setJobs(res.data);
+        // If backend returns job objects, extract IDs:
+        const appliedIds = res.data.applied_jobs.map(job => job.id); // or job.jd_id based on backend
+        setAppliedJobs(appliedIds);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch applied jobs:', err);
+      });
+
+    // Fetch pending jobs
+    axios
+      .get(`${import.meta.env.VITE_API_BASE_URL}/api/job-descriptions/pending`, {
+        withCredentials: true,
+      })
+      .then((res) => {
+        setJobs(res.data.pending_jobs);
       })
       .catch((err) => {
         console.error('Failed to load jobs:', err);
       });
   }, []);
+
 
   // Toggle job description visibility
   const toggleJobDescription = (jobId) => {
@@ -82,11 +99,10 @@ const ApplyJobs = () => {
                 <button
                   onClick={() => handleApply(job.id)}
                   disabled={appliedJobs.includes(job.id)}
-                  className={`px-3 py-1 rounded ${
-                    appliedJobs.includes(job.id)
+                  className={`px-3 py-1 rounded ${appliedJobs.includes(job.id)
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
+                    }`}
                 >
                   {appliedJobs.includes(job.id) ? 'Applied' : 'Apply'}
                 </button>
@@ -97,7 +113,7 @@ const ApplyJobs = () => {
               <div className="mt-3 text-sm text-gray-700">
                 <p><strong>Description:</strong> {job.description}</p>
                 <p><strong>Skills:</strong> {job.skills}</p>
-                <p><strong>End Date:</strong> {new Date(job.end_date).toLocaleDateString()}</p>
+                <p><strong>End Date:</strong> {new Date(job.end_date).toLocaleDateString()} </p>
               </div>
             )}
           </div>

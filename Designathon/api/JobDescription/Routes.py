@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
-from db.Schema import JobDescriptionResponse, JobDescriptionCreate
+from db.Schema import JobDescriptionResponse, JobDescriptionCreate, RankingResponse
 from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
 from api.EmailNotification.report_service import generate_consultant_report
@@ -14,8 +14,16 @@ from db.Model import EmailNotification, Ranking, JobDescription, ConsultantProfi
 from typing import List
 from enums import JobStatus, NotificationStatus, WorkflowStepStatus
 from agents.ranking_service import init_or_update_workflow_status
+from sqlalchemy import and_
 
 router = APIRouter()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db  # Pass db to the route
+    finally:
+        db.close() 
 
 #To See all JDs
 @router.get("/job-descriptions", response_model=List[JobDescriptionResponse])
@@ -40,6 +48,61 @@ def get_all_job_descriptions(
     finally:
         db.close()
 
+# # ✅ To See only pending JDs
+@router.get("/job-descriptions/pending")
+def get_pending_job_descriptions(user=Depends(get_current_user)):
+    db: Session = SessionLocal()
+    try:
+        current_user = db.query(User).filter_by(email=user["sub"]).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        pending_jds = (
+            db.query(JobDescription)
+            .filter(JobDescription.status == JobStatus.in_progress)
+            .order_by(JobDescription.created_at.desc())
+            .all()
+        )
+
+        return {
+            "user_id": current_user.user_id,
+            "pending_jobs": [
+                {
+                    "id": jd.id,
+                    "title": jd.title,
+                    "description": jd.description,
+                    "skills": jd.skills,
+                    "experience": jd.experience,
+                    "status": jd.status,
+                    "end_date": jd.end_date,
+                }
+                for jd in pending_jds
+            ]
+        }
+
+    finally:
+        db.close()
+
+
+@router.get("/job-descriptions/{jd_id}/rankings", response_model=List[RankingResponse])
+def get_rankings_for_jd(jd_id: str, db: Session = Depends(get_db)):
+    jd = db.query(JobDescription).filter_by(id=jd_id).first()
+    if not jd:
+        raise HTTPException(status_code=404, detail="Job Description not found")
+
+    rankings = (
+        db.query(Ranking)
+        .filter(Ranking.jd_id == jd_id)
+        .order_by(Ranking.rank.asc())
+        .all()
+    )
+
+    if not rankings:
+        raise HTTPException(status_code=404, detail="No rankings found for this JD")
+
+    return rankings
+
+
 #AR Requestor JD 
 @router.get("/job-descriptions/me", response_model=List[JobDescriptionResponse])
 def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
@@ -54,7 +117,7 @@ def get_my_job_descriptions(user=Depends(require_role(["ARRequestor"]))):
     finally:
         db.close()
 
-@router.get("/users/me/applied-jobs")
+@router.get("/users/me/all-applied-jobs")
 async def get_applied_jobs_for_logged_user(request: Request, user=Depends(get_current_user)):
     db: Session = SessionLocal()
     try:
@@ -99,6 +162,61 @@ async def get_applied_jobs_for_logged_user(request: Request, user=Depends(get_cu
 
     finally:
         db.close()
+
+@router.get("/users/me/applied-jobs")
+async def get_applied_jobs_for_logged_user(request: Request, user=Depends(get_current_user)):
+    db: Session = SessionLocal()
+    try:
+        user_email = user.get("sub")
+        current_user = db.query(User).filter_by(email=user_email).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        consultant_profiles = db.query(ConsultantProfile).filter_by(user_id=current_user.user_id).all()
+        if not consultant_profiles:
+            raise HTTPException(status_code=404, detail="No consultant profiles found for user")
+
+        consultant_ids = [cp.id for cp in consultant_profiles]
+
+        # Get all applications made by the user's consultant profiles
+        applications = db.query(Application).filter(Application.profile_id.in_(consultant_ids)).all()
+        if not applications:
+            return {"user_id": current_user.user_id, "applied_jobs": []}
+
+        jd_ids = [app.jd_id for app in applications]
+
+        job_list = []
+        for jd in db.query(JobDescription).filter(JobDescription.id.in_(jd_ids)).all():
+            # Skip if status is 'completed' and user not in Ranking table for that JD
+            if jd.status == JobStatus.completed:
+                # Check if any consultant profile is ranked for this JD
+                is_ranked = db.query(Ranking).filter(
+                    and_(
+                        Ranking.jd_id == jd.id,
+                        Ranking.profile_id.in_(consultant_ids)
+                    )
+                ).first()
+                if not is_ranked:
+                    continue  # Skip this JD
+
+            job_list.append({
+                "id": jd.id,
+                "title": jd.title,
+                "description": jd.description,
+                "skills": jd.skills,
+                "experience": jd.experience,
+                "status": jd.status,
+                "end_date": jd.end_date,
+            })
+
+        return {
+            "user_id": current_user.user_id,
+            "applied_jobs": job_list
+        }
+
+    finally:
+        db.close()
+
 
 def extract_text_from_pdf(file: UploadFile) -> str:
     doc = fitz.open(stream=file.file.read(), filetype="pdf")
