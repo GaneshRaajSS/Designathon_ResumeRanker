@@ -93,11 +93,6 @@ class Ranking(Base):
     job_description = relationship("JobDescription", back_populates="rankings")
     consultant_profile = relationship("ConsultantProfile", back_populates="rankings")
 
-    __table_args__ = (
-        UniqueConstraint("jd_id", "profile_id", name="uq_ranking_once_per_jd"),
-    )
-
-
 class EmailNotification(Base):
     __tablename__ = "email_notifications"
 

@@ -17,7 +17,7 @@ def read_consultant(consultant_id: str, user=Depends(require_role(["Recruiter"])
         return consultant
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @router.post("/consultant/upload/")
 async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(require_role(["User"]))):
     try:
@@ -29,9 +29,13 @@ async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(re
         db_user = db.query(User).filter_by(email=user["sub"]).first()
         if not db_user:
             raise HTTPException(status_code=404, detail="User not found")
-        consultant, status = await create_consultant({"resume_text": resume_text,  "user_id": db_user.user_id})
-        
-        # Upload PDF to blob storage
+
+        consultant, status = await create_consultant({
+            "resume_text": resume_text,
+            "user_id": db_user.user_id
+        }, skip_if_duplicate=False)
+
+        # ✅ Upload to blob with known ID (existing or new)
         upload_resume_to_blob(consultant.id, contents)
 
         return {
@@ -46,7 +50,6 @@ async def upload_consultant_resume(file: UploadFile = File(...), user=Depends(re
                 "user_id": consultant.user_id
             }
         }
-
     except Exception as e:
         import traceback
         traceback.print_exc()

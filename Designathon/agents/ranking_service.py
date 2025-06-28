@@ -10,61 +10,6 @@ from enums import WorkflowStepStatus, NotificationStatus, HistoryStatus
 from sqlalchemy.orm import Session
 from sqlalchemy import delete
 
-async def rank_profiles(jd, profiles):
-    scores = compute_cosine_similarity(jd.embedding, [p.embedding for p in profiles])
-    db = SessionLocal()
-    try:
-        for profile, score in zip(profiles, scores):
-            db.add(SimilarityScore(jd_id=jd.id, profile_id=profile.id, similarity_score=score))
-        db.commit()
-        top_10 = sorted(zip(profiles, scores), key=lambda x: x[1], reverse=True)[:10]
-
-        reranked = []
-        for profile, sim_score in top_10:
-            explanation = await gpt_score_resume(jd, profile)
-            reranked.append((profile, sim_score, explanation))
-
-        # Sort by score again to assign proper rank
-        reranked = sorted(reranked, key=lambda x: x[1], reverse=True)
-
-        # Clear existing rankings for this JD
-        db.query(Ranking).filter_by(jd_id=jd.id).delete()
-        db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
-        db.commit()
-
-        top_ranked_profiles = []
-        for rank, (profile, score, explanation) in enumerate(reranked, start=1):
-            db.add(Ranking(jd_id=jd.id, profile_id=profile.id, rank=rank, explanation=explanation))
-
-            if rank == 1:
-                action_status = HistoryStatus.Shortlisted
-                await move_resume_to_jd_folder(profile.id, jd.id)
-            else:
-                action_status = HistoryStatus.Rejected
-
-            create_history_entry({
-                "jd_id": jd.id,
-                "profile_id": profile.id,
-                "action": action_status,
-            })
-            top_ranked_profiles.append(profile)
-
-        db.commit()
-
-        return [
-            {
-                "consultant_id": profile.id,
-                "name": profile.name,
-                "email": profile.email,
-                "score": score,
-                "explanation": explanation
-            }
-            for profile, score, explanation in reranked[:3]  # Currently top 1 only
-        ]
-
-    finally:
-        db.close()
-
 async def finalize_and_notify(jd_id: str, ranked_consultants: list[dict]):
     db = SessionLocal()
     try:
@@ -111,65 +56,109 @@ def init_or_update_workflow_status(db: Session, jd_id: str):
 
     db.commit()
 
+async def rank_profiles(jd, profiles):
+    db = SessionLocal()
+    try:
+        # 🔍 Fetch all saved similarity scores for this JD
+        existing_scores = {
+            s.profile_id: s.similarity_score
+            for s in db.query(SimilarityScore).filter_by(jd_id=jd.id).all()
+        }
 
+        # 🧮 Filter profiles with saved similarity scores
+        profiles_with_scores = []
+        for p in profiles:
+            if p.id in existing_scores:
+                profiles_with_scores.append((p, existing_scores[p.id]))
+            else:
+                print(f"⚠️ Skipping profile {p.name} — no saved similarity score.")
 
-# Stores only top 5 profiles in the SimilarityScore table. Stores only top 3 profiles in the Ranking table.------------------
+        if not profiles_with_scores:
+            print("⚠️ No profiles with valid similarity scores.")
+            return []
 
-# async def rank_profiles(jd, profiles):
-#     scores = compute_cosine_similarity(jd.embedding, [p.embedding for p in profiles])
-#     db = SessionLocal()
-#     try:
-#         # 🔢 Store only top 5 similarity scores
-#         top_5_sim_scores = sorted(zip(profiles, scores), key=lambda x: x[1], reverse=True)[:5]
-#         for profile, score in top_5_sim_scores:
-#             db.add(SimilarityScore(jd_id=jd.id, profile_id=profile.id, similarity_score=score))
-#         db.commit()
+        # 🔢 Pick top 5 by similarity
+        top_5 = sorted(profiles_with_scores, key=lambda x: x[1], reverse=True)[:5]
 
-#         # 🎯 Re-rank only top 5 with GPT
-#         reranked = []
-#         for profile, sim_score in top_5_sim_scores:
-#             explanation = await gpt_score_resume(jd, profile)
-#             reranked.append((profile, sim_score, explanation))
+        # 🎯 Re-rank top 5 with GPT
+        reranked = []
+        for profile, sim_score in top_5:
+            gpt_result = await gpt_score_resume(jd, profile)
 
-#         # 🧠 Sort by GPT reranked score
-#         reranked = sorted(reranked, key=lambda x: x[1], reverse=True)
+            # Handle different return types from gpt_score_resume
+            if isinstance(gpt_result, tuple):
+                gpt_score, explanation = gpt_result
+            elif isinstance(gpt_result, dict):
+                gpt_score = gpt_result.get("score", sim_score)
+                explanation = gpt_result.get("explanation", "")
+            else:
+                gpt_score = sim_score
+                explanation = str(gpt_result)
 
-#         # 🧹 Clear existing rankings and history
-#         db.query(Ranking).filter_by(jd_id=jd.id).delete()
-#         db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
-#         db.commit()
+            reranked.append((profile, sim_score, gpt_score, explanation))
 
-#         # 🥇 Save only top 3 into Ranking
-#         top_ranked_profiles = []
-#         for rank, (profile, score, explanation) in enumerate(reranked[:3], start=1):
-#             db.add(Ranking(jd_id=jd.id, profile_id=profile.id, rank=rank, explanation=explanation))
+        # 🧠 Sort by GPT score
+        reranked = sorted(reranked, key=lambda x: x[2], reverse=True)
 
-#             if rank == 1:
-#                 action_status = HistoryStatus.Shortlisted
-#                 await move_resume_to_jd_folder(profile.id, jd.id)
-#             else:
-#                 action_status = HistoryStatus.Rejected
+        # 🧾 Compare new top 3 with existing
+        existing_top3 = (
+            db.query(Ranking.profile_id)
+            .filter_by(jd_id=jd.id)
+            .order_by(Ranking.rank)
+            .limit(3)
+            .all()
+        )
+        existing_ids = [r[0] for r in existing_top3]
+        new_ids = [p.id for p, _, _, _ in reranked[:3]]
 
-#             create_history_entry({
-#                 "jd_id": jd.id,
-#                 "profile_id": profile.id,
-#                 "action": action_status,
-#             })
-#             top_ranked_profiles.append(profile)
+        top3_changed = set(existing_ids) != set(new_ids)
 
-#         db.commit()
+        # 🧹 Clear previous rankings and history
+        db.query(Ranking).filter_by(jd_id=jd.id).delete()
+        db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
+        db.commit()
 
-#         # 🔙 Return top 3 for report/email
-#         return [
-#             {
-#                 "consultant_id": profile.id,
-#                 "name": profile.name,
-#                 "email": profile.email,
-#                 "score": score,
-#                 "explanation": explanation
-#             }
-#             for profile, score, explanation in reranked[:3]
-#         ]
+        ranked_consultants = []
+        for rank, (profile, sim_score, gpt_score, explanation) in enumerate(reranked[:3], start=1):
+            db.add(Ranking(
+                jd_id=jd.id,
+                profile_id=profile.id,
+                rank=rank,
+                explanation=explanation,
+            ))
+            print(f"🔁 Saved Rank {rank}: {profile.name} ({profile.id})")
 
-#     finally:
-#         db.close()
+            # ✅ Top 3 are all shortlisted
+            action_status = HistoryStatus.Shortlisted
+            await move_resume_to_jd_folder(profile.id, jd.id)
+
+            create_history_entry({
+                "jd_id": jd.id,
+                "profile_id": profile.id,
+                "action": action_status,
+            }, db)
+
+            ranked_consultants.append({
+                "consultant_id": profile.id,
+                "name": profile.name,
+                "email": profile.email,
+                "score": gpt_score,
+                "explanation": explanation
+            })
+
+        db.commit()
+
+        if top3_changed:
+            print("📧 Top 3 changed — sending report")
+            await finalize_and_notify(jd.id, ranked_consultants)
+        else:
+            print("✅ Top 3 unchanged — no email sent")
+
+        return ranked_consultants
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error in rank_profiles: {e}")
+        raise
+    finally:
+        db.close()

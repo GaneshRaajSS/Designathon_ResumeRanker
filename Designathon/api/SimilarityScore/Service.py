@@ -20,4 +20,10 @@ def get_all_similarity_scores_db(user: dict, db: Session):
     return db.query(SimilarityScore).filter(SimilarityScore.jd_id.in_(jd_ids)).all()
 
 def get_similarity_scores_by_jd_db(jd_id: str, db: Session):
-    return db.query(SimilarityScore).filter_by(jd_id=jd_id).all()
+    return (
+        db.query(SimilarityScore)
+        .filter_by(jd_id=jd_id)
+        .order_by(SimilarityScore.score.desc())
+        .limit(5)
+        .all()
+    )

@@ -19,8 +19,6 @@ class UserResponse(BaseModel):
         # from_attributes = True
         orm_mode = True
 
-
-
 # schemas/similarity_score.py
 class SimilarityScoreCreate(BaseModel):
     jd_id: str
@@ -115,8 +113,6 @@ class ConsultantResponse(ConsultantCreate):
         # from_attributes = True
         orm_mode = True
 
-
-
 # schemas/JD.py
 class JobDescriptionCreate(BaseModel):
     title: str = Field(..., min_length=3)
@@ -133,7 +129,6 @@ class JobDescriptionResponse(JobDescriptionCreate):
     class Config:
         # from_attributes = True
         orm_mode = True
-
 
 # schemas/JDProfileHistory.py
 from pydantic import BaseModel, Field
