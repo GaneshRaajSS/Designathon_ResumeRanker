@@ -131,8 +131,8 @@ class JobDescriptionResponse(JobDescriptionCreate):
     created_at: datetime
     updated_at: Optional[datetime] = None
     class Config:
-        # from_attributes = True
-        orm_mode = True
+         from_attributes = True
+        #orm_mode = True
 
 
 # schemas/JDProfileHistory.py
@@ -153,3 +153,5 @@ class JDProfileHistoryResponse(JDProfileHistoryCreate):
     class Config:
         # from_attributes = True
         orm_mode = True
+class JobStatusUpdateRequest(BaseModel):
+    status: JobStatus

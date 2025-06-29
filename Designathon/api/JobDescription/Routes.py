@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
-from db.Schema import JobDescriptionResponse, JobDescriptionCreate
+from db.Schema import JobDescriptionResponse, JobDescriptionCreate,JobStatusUpdateRequest
+
 from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
 from api.EmailNotification.report_service import generate_consultant_report
@@ -158,6 +159,8 @@ async def upload_jd_file(file: UploadFile = File(...), user=Depends(require_role
         # return await create_job_description(parsed_fields)
 
     except Exception as e:
+        import traceback
+        print("Upload Error:", traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
@@ -208,7 +211,8 @@ async def submit_jd(jd_data: JobDescriptionCreate, user=Depends(require_role(["A
 
 
 @router.patch("/job-descriptions/{jd_id}/status")
-def update_jd_status(jd_id: str, new_status: JobStatus, user=Depends(require_role(["ARRequestor"]))):
+def update_jd_status(jd_id: str, request: JobStatusUpdateRequest, user=Depends(require_role(["ARRequestor"]))):
+    new_status = request.status
     db: Session = SessionLocal()
     try:
         jd = db.query(JobDescription).filter_by(id=jd_id).first()
@@ -216,6 +220,7 @@ def update_jd_status(jd_id: str, new_status: JobStatus, user=Depends(require_rol
             raise HTTPException(status_code=404, detail="Job Description not found")
 
         jd.status = new_status
+
         db.commit()
 
         # ✅ Trigger email only if status set to 'Completed'
