@@ -1,8 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
-import {
-  Activity, AlertTriangle, BarChart3, Clock, Database, Eye, FileText,
-  Home, RefreshCw, Server, Settings, TrendingUp, Zap, Shield
+import { AlertTriangle, BarChart3, Clock, FileText,
+  Home, RefreshCw, Zap
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer

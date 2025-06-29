@@ -10,7 +10,6 @@ const LandingPage = () => {
 
   useEffect(() => {
     setMounted(true);
-
     // API call to check if user is already authenticated
     axios
       .get(`${import.meta.env.VITE_API_BASE_URL}/me`, { withCredentials: true })

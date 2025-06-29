@@ -3,14 +3,14 @@ import os
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from openai import AzureOpenAI
+from skills import skill_lookup
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# ✅ Ensure NLTK looks in the right directory for downloaded data
 nltk.data.path.append(os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'nltk_data'))
-nltk.download('punkt')  # Optional: safe to keep in dev environments
+nltk.download('punkt')
 
 client = AzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -20,7 +20,6 @@ client = AzureOpenAI(
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o-mini")
-
 
 def extract_name(text: str) -> str | None:
     lines = text.strip().splitlines()
@@ -39,7 +38,6 @@ def extract_email(text: str) -> str | None:
 def extract_phone(text: str) -> str | None:
     match = re.search(r'\+?\d[\d\s\-\(\)]{8,}\d', text)
     return match.group(0) if match else None
-
 
 def extract_by_section(text: str, headers, stop_words=None):
     lines = text.splitlines()
@@ -63,16 +61,16 @@ def extract_by_section(text: str, headers, stop_words=None):
         else:
             if capturing:
                 if stop_words and any(s.lower() in clean for s in stop_words):
-                    break
+                    capturing = False
+                    continue
                 if re.search(r'working with|currently at|experience|from .* to|till date', clean):
-                    break
+                    continue
                 if line.strip() and line.strip() not in seen_lines:
                     section_lines.append(line.strip())
                     seen_lines.add(line.strip())
 
     full_text = "\n".join(section_lines).strip()
     return full_text if section_lines else None
-
 
 async def gpt_extract_yoe(text: str) -> str | None:
     messages = [
@@ -112,10 +110,27 @@ async def gpt_extract_yoe(text: str) -> str | None:
         return result
     return None
 
+def normalize_skills(raw_text: str) -> list[str]:
+    words = re.split(r'[\n,;/\-]+', raw_text.lower())
+    normalized = set()
+
+    for word in words:
+        cleaned = word.strip()
+        if not cleaned:
+            continue
+        if cleaned in skill_lookup:
+            normalized.add(skill_lookup[cleaned])
+        else:
+            simplified = re.sub(r'[\s\-]+', '', cleaned)
+            for alias in skill_lookup:
+                alias_simplified = re.sub(r'[\s\-]+', '', alias)
+                if simplified == alias_simplified:
+                    normalized.add(skill_lookup[alias])
+                    break
+    return sorted(normalized)
 
 def extract_yoe(text: str) -> str | None:
     text = text.lower()
-
     if "intern" in text or "internship" in text:
         return None
 
@@ -132,13 +147,23 @@ def extract_yoe(text: str) -> str | None:
 
     return None
 
-
 async def extract_sections(text: str) -> dict:
     experience_text = extract_by_section(
         text,
         ["Synopsis"],
         ["Experience Summary", "Education", "Project Experience", "Areas of Experience", "Qualification"]
     )
+
+    raw_skills = extract_by_section(
+        text,
+        [
+            "Skills", "Technical Skills", "Technologies", "Tools & Technology", "Languages",
+            "Areas of Experience", "AreasofExperience", "Area of EXPERIENCE", "Certifications",
+            "Tools", "Platforms", "Frameworks"
+        ],
+        ["Experience", "Education", "Qualification", "Page", extract_name(text)]
+    )
+    normalized_skills = normalize_skills(raw_skills or "")
 
     yoe = extract_yoe(experience_text or "")
     if not yoe:
@@ -151,11 +176,7 @@ async def extract_sections(text: str) -> dict:
         "name": extract_name(text),
         "email": extract_email(text),
         "phone": extract_phone(text),
-        "skills": extract_by_section(
-            text,
-            ["Skills", "Technical Skills", "Areas of Experience", "AreasofExperience"],
-            ["Experience", "Education", "Qualification", "Page", extract_name(text)]
-        ),
+        "skills": ", ".join(normalized_skills) if normalized_skills else None,
         "experience": yoe if yoe else "null",
         "education": extract_by_section(
             text,
@@ -168,5 +189,6 @@ async def extract_sections(text: str) -> dict:
             ["Experience", "Education", "Qualification", "Synopsis", "Areas of Experience"]
         ),
         "sentences": sentences,
-        "tokens": tokenized_sentences 
+
+        "tokens": tokenized_sentences
     }

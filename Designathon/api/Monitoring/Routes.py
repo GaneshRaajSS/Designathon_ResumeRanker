@@ -31,7 +31,7 @@ def query_logs(query: str):
     response = log_client.query_workspace(
         workspace_id=workspace_id,
         query=query,
-        timespan=timedelta(hours=2)
+        timespan=timedelta(hours=24)
     )
     if not response.tables:
         return []
@@ -64,7 +64,6 @@ def get_latencies():
         traceback_str = traceback.format_exc()
         logger.exception("❌ Error while querying latencies: %s", e)
         return {"error": str(e), "traceback": traceback_str}
-
 
 # ✅ 3. View application errors
 @router.get("/monitoring/errors")
