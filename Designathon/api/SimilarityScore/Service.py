@@ -1,6 +1,6 @@
 from JDdb import SessionLocal
 from sqlalchemy.orm import Session
-from db.Model import SimilarityScore, User
+from db.Model import SimilarityScore, User, ConsultantProfile
 
 def get_db():
     db = SessionLocal()
@@ -21,9 +21,19 @@ def get_all_similarity_scores_db(user: dict, db: Session):
 
 def get_similarity_scores_by_jd_db(jd_id: str, db: Session):
     return (
-        db.query(SimilarityScore)
-        .filter_by(jd_id=jd_id)
-        .order_by(SimilarityScore.score.desc())
+        db.query(
+            SimilarityScore.jd_id,
+            SimilarityScore.profile_id,
+            SimilarityScore.similarity_score.label("score"),
+            SimilarityScore.similarity_id,
+            SimilarityScore.created_at,
+            User.name.label("name"),
+            User.email.label("email"),
+        )
+        .join(ConsultantProfile, ConsultantProfile.id == SimilarityScore.profile_id)
+        .join(User, User.user_id == ConsultantProfile.user_id)
+        .filter(SimilarityScore.jd_id == jd_id)
+        .order_by(SimilarityScore.similarity_score.desc())
         .limit(5)
         .all()
     )

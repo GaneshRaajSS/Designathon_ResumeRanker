@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
-from db.Schema import JobDescriptionResponse, JobDescriptionCreate, RankingResponse
+from db.Schema import JobDescriptionResponse, JobDescriptionCreate, RankingResponse, JobStatusUpdateRequest
 from .Service import create_job_description, get_job_descriptions_by_user
 from docx import Document
 from api.EmailNotification.report_service import generate_consultant_report
@@ -75,6 +75,7 @@ def get_pending_job_descriptions(user=Depends(get_current_user)):
                     "experience": jd.experience,
                     "status": jd.status,
                     "end_date": jd.end_date,
+                    "posted_by": jd.user.name if jd.user else "Unknown"
                 }
                 for jd in pending_jds
             ]
