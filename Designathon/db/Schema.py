@@ -34,7 +34,18 @@ class SimilarityScoreResponse(SimilarityScoreCreate):
         orm_mode = True
 
 
+class SimilarityScoreEnriched(BaseModel):
+    jd_id: str
+    profile_id: str
+    score: float
+    similarity_id: str
+    created_at: datetime
+    name: str
+    email: str
 
+    class Config:
+        orm_mode = True
+        
 # schemas/ranking.py
 class RankingCreate(BaseModel):
     jd_id: str
@@ -127,8 +138,8 @@ class JobDescriptionResponse(JobDescriptionCreate):
     created_at: datetime
     updated_at: Optional[datetime] = None
     class Config:
-         from_attributes = True
-        #orm_mode = True
+        #  from_attributes = True
+        orm_mode = True
 
 # schemas/JDProfileHistory.py
 from pydantic import BaseModel, Field

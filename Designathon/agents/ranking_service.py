@@ -9,6 +9,11 @@ from JDdb import SessionLocal
 from enums import WorkflowStepStatus, NotificationStatus, HistoryStatus
 from sqlalchemy.orm import Session
 from sqlalchemy import delete
+from api.ConsultantProfiles.Extractor import extract_sections 
+def parse_years(yoe_str: str) -> float:
+    import re
+    match = re.match(r"(\d+(\.\d+)?)", yoe_str)
+    return float(match.group(1)) if match else 0.0
 
 async def finalize_and_notify(jd_id: str, ranked_consultants: list[dict]):
     db = SessionLocal()
@@ -59,13 +64,13 @@ def init_or_update_workflow_status(db: Session, jd_id: str):
 async def rank_profiles(jd, profiles):
     db = SessionLocal()
     try:
-        # 🔍 Fetch all saved similarity scores for this JD
+        # Fetch all saved similarity scores for this JD
         existing_scores = {
             s.profile_id: s.similarity_score
             for s in db.query(SimilarityScore).filter_by(jd_id=jd.id).all()
         }
 
-        # 🧮 Filter profiles with saved similarity scores
+        #  Filter profiles with saved similarity scores
         profiles_with_scores = []
         for p in profiles:
             if p.id in existing_scores:
@@ -77,10 +82,10 @@ async def rank_profiles(jd, profiles):
             print("⚠️ No profiles with valid similarity scores.")
             return []
 
-        # 🔢 Pick top 5 by similarity
+        # Pick top 5 by similarity
         top_5 = sorted(profiles_with_scores, key=lambda x: x[1], reverse=True)[:5]
 
-        # 🎯 Re-rank top 5 with GPT
+        #  Re-rank top 5 with GPT
         reranked = []
         for profile, sim_score in top_5:
             gpt_result = await gpt_score_resume(jd, profile)
@@ -97,10 +102,10 @@ async def rank_profiles(jd, profiles):
 
             reranked.append((profile, sim_score, gpt_score, explanation))
 
-        # 🧠 Sort by GPT score
+        #  Sort by GPT score
         reranked = sorted(reranked, key=lambda x: x[2], reverse=True)
 
-        # 🧾 Compare new top 3 with existing
+        # Compare new top 3 with existing
         existing_top3 = (
             db.query(Ranking.profile_id)
             .filter_by(jd_id=jd.id)
@@ -113,7 +118,7 @@ async def rank_profiles(jd, profiles):
 
         top3_changed = set(existing_ids) != set(new_ids)
 
-        # 🧹 Clear previous rankings and history
+        # Clear previous rankings and history
         db.query(Ranking).filter_by(jd_id=jd.id).delete()
         db.query(JDProfileHistory).filter_by(jd_id=jd.id).delete()
         db.commit()
@@ -128,7 +133,7 @@ async def rank_profiles(jd, profiles):
             ))
             print(f"🔁 Saved Rank {rank}: {profile.name} ({profile.id})")
 
-            # ✅ Top 3 are all shortlisted
+            # Top 3 are all shortlisted
             action_status = HistoryStatus.Shortlisted
             await move_resume_to_jd_folder(profile.id, jd.id)
 

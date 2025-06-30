@@ -24,7 +24,6 @@ AUTH_ENDPOINT = f"{ISSUER}/v1/authorize"
 TOKEN_ENDPOINT = f"{ISSUER}/v1/token"
 JWKS_URI = f"{ISSUER}/v1/keys"
 JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
-# RECRUITER_LIST = [e.strip() for e in os.getenv("RECRUITER_EMAILS", "").split(",") if e.strip()]
 
 STATE_STORE = {}
 
