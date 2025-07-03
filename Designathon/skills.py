@@ -162,8 +162,9 @@ known_skills = {
     "a-frame": ["a-frame", "aframe"],
     "unity": ["unity", "unity3d"],
     "unreal engine": ["unreal", "unreal engine", "ue4", "ue5"],
-    "nunit": ["nunit", "Nunit", "N unit"],
+    "nunit": ["nunit", "Nunit", "N unit"], 
     "junit": ["junit", "Junit"],
+    "opentelementry": ["OpenTelementry", "Opentelementry", "openTelementry", "Open Telementry", "Open telementry", "open Telementry"]
 }
 
 # Build reverse lookup dictionary

@@ -91,6 +91,29 @@ def get_jd_applications(jd_id: str):
         for profile, rank in results
     ]
 
+# def calculate_skill_match(jd_skills: str, profile_skills: str) -> float:
+#     jd_skill_set = set(map(str.lower, map(str.strip, jd_skills.split(','))))
+#     profile_skill_set = set(map(str.lower, map(str.strip, profile_skills.split(','))))
+
+#     if not jd_skill_set:
+#         return 1.0  # if no JD skills defined, consider it a match
+
+#     match_count = len(jd_skill_set & profile_skill_set)
+#     return match_count / len(jd_skill_set)
+def calculate_skill_match(jd_skills: str, profile_skills: str) -> tuple[float, list[str]]:
+    jd_skill_set = set(map(str.lower, map(str.strip, jd_skills.split(','))))
+    profile_skill_set = set(map(str.lower, map(str.strip, profile_skills.split(','))))
+
+    if not jd_skill_set:
+        return 1.0, []  # If no JD skills defined, consider it a full match
+
+    matched = jd_skill_set & profile_skill_set
+    missing = jd_skill_set - profile_skill_set
+
+    match_ratio = len(matched) / len(jd_skill_set)
+    return match_ratio, list(missing)
+
+
 async def rank_consultant(jd_id: str, profile_id: str):
     db: Session = SessionLocal()
     try:
@@ -98,6 +121,24 @@ async def rank_consultant(jd_id: str, profile_id: str):
         profile = db.query(ConsultantProfile).filter_by(id=profile_id).first()
         if not jd or not profile:
             return
+        
+        # 🚫 Reject if experience is insufficient
+        if profile.experience < jd.experience:
+            print(f"❌ Rejected: {profile.name} has {profile.experience} years, needs {jd.experience}")
+            return
+
+        # 🚫 Reject if skills match is less than 50%
+        from agents.similarity_service import compute_cosine_similarity
+        # skill_match_ratio = calculate_skill_match(jd.skills, profile.skills)
+        # if skill_match_ratio < 0.5:
+        #     print(f"❌ Rejected: {profile.name} has insufficient skill match ({skill_match_ratio:.2%})")
+        #     return
+        skill_match_ratio, missing_skills = calculate_skill_match(jd.skills, profile.skills)
+        if skill_match_ratio < 0.5:
+            print(f"❌ Rejected: {profile.name} has insufficient skill match ({skill_match_ratio:.2%})")
+            print(f"🔍 Missing Skills: {', '.join(missing_skills)}")
+            return
+        
          # 🚫 Don't recompute similarity score if it already exists
         existing_score = db.query(SimilarityScore).filter_by(
             jd_id=jd_id, profile_id=profile_id
