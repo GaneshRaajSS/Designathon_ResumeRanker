@@ -47,6 +47,29 @@ known_skills = {
     "rails": ["rails", "ruby on rails"],
     "fastapi": ["fastapi"],
 
+
+    # Design Tools
+    "adobe photoshop": ["photoshop", "adobe photoshop"],
+    "adobe illustrator": ["illustrator", "adobe illustrator"],
+    "adobe xd": ["adobe xd", "xd"],
+    "canva": ["canva"],
+    "invision": ["invision", "invisionapp"],
+    "after effects": ["after effects", "adobe after effects"],
+    "premiere pro": ["premiere pro", "adobe premiere pro"],
+    "figjam": ["figjam"],
+    "sketch": ["sketch"],
+    "lightroom": ["lightroom", "adobe lightroom"],
+    "microsoft office suite": [
+        "office suite", "ms office", "microsoft office", "office365", "office 365", 
+        "ms365", "microsoft 365",
+        "word", "ms word", "microsoft word",
+        "excel", "ms excel", "microsoft excel",
+        "powerpoint", "ms powerpoint", "microsoft powerpoint", "ppt", "pptx",
+        "outlook", "ms outlook", "microsoft outlook",
+        "onenote", "ms onenote", "microsoft onenote",
+        "teams", "microsoft teams", "ms teams"
+    ],
+
     # Databases
     "mysql": ["mysql", "my sql", "my-sql"],
     "mssql": [
@@ -136,7 +159,6 @@ known_skills = {
     "tableau": ["tableau"],
     "looker": ["looker"],
     "qlik": ["qlik", "qlikview", "qliksense"],
-    "excel": ["excel", "ms excel", "microsoft excel"],
 
     # Operating Systems
     "windows": ["windows", "microsoft windows"],
