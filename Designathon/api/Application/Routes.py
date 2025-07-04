@@ -6,6 +6,7 @@ from db.Schema import ApplicationCreate  # Schema with just jd_id
 from agents.ranking_service import rank_profiles, finalize_and_notify
 from api.ConsultantProfiles.Service import move_resume_to_jd_folder
 from api.Auth.okta_auth import require_role, get_current_user
+from skills import skill_lookup
 
 router = APIRouter()
 
@@ -91,27 +92,28 @@ def get_jd_applications(jd_id: str):
         for profile, rank in results
     ]
 
-# def calculate_skill_match(jd_skills: str, profile_skills: str) -> float:
-#     jd_skill_set = set(map(str.lower, map(str.strip, jd_skills.split(','))))
-#     profile_skill_set = set(map(str.lower, map(str.strip, profile_skills.split(','))))
+def calculate_skill_match(
+    jd_skills: str, 
+    profile_skills: str, 
+    skill_lookup: dict
+) -> tuple[float, list[str]]:
+    def normalize(skills: str) -> set[str]:
+        return {
+            skill_lookup.get(skill.strip().lower(), skill.strip().lower())
+            for skill in skills.split(',') if skill.strip()
+        }
 
-#     if not jd_skill_set:
-#         return 1.0  # if no JD skills defined, consider it a match
-
-#     match_count = len(jd_skill_set & profile_skill_set)
-#     return match_count / len(jd_skill_set)
-def calculate_skill_match(jd_skills: str, profile_skills: str) -> tuple[float, list[str]]:
-    jd_skill_set = set(map(str.lower, map(str.strip, jd_skills.split(','))))
-    profile_skill_set = set(map(str.lower, map(str.strip, profile_skills.split(','))))
+    jd_skill_set = normalize(jd_skills)
+    profile_skill_set = normalize(profile_skills)
 
     if not jd_skill_set:
-        return 1.0, []  # If no JD skills defined, consider it a full match
+        return 1.0, []
 
     matched = jd_skill_set & profile_skill_set
     missing = jd_skill_set - profile_skill_set
-
     match_ratio = len(matched) / len(jd_skill_set)
-    return match_ratio, list(missing)
+
+    return round(match_ratio, 2), sorted(missing)
 
 
 async def rank_consultant(jd_id: str, profile_id: str):
@@ -129,11 +131,7 @@ async def rank_consultant(jd_id: str, profile_id: str):
 
         # 🚫 Reject if skills match is less than 50%
         from agents.similarity_service import compute_cosine_similarity
-        # skill_match_ratio = calculate_skill_match(jd.skills, profile.skills)
-        # if skill_match_ratio < 0.5:
-        #     print(f"❌ Rejected: {profile.name} has insufficient skill match ({skill_match_ratio:.2%})")
-        #     return
-        skill_match_ratio, missing_skills = calculate_skill_match(jd.skills, profile.skills)
+        skill_match_ratio, missing_skills = calculate_skill_match(jd.skills, profile.skills, skill_lookup)
         if skill_match_ratio < 0.5:
             print(f"❌ Rejected: {profile.name} has insufficient skill match ({skill_match_ratio:.2%})")
             print(f"🔍 Missing Skills: {', '.join(missing_skills)}")
